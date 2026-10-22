@@ -12,12 +12,12 @@
   <Identity
     Name="F525FA84-3CC3-47AA-96F5-F35038FCB4AC"
     Publisher="CN=AppPublisher"
-    Version="1.0.0.0" />
+    Version="1.0.4.0" />
 
   <mp:PhoneIdentity PhoneProductId="F525FA84-3CC3-47AA-96F5-F35038FCB4AC" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>
 
   <Properties>
-    <DisplayName>StormKeys</DisplayName>
+    <DisplayName>STORM KEYS</DisplayName>
     <PublisherDisplayName>AppPublisher</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
     <uap10:PackageIntegrity>
@@ -39,8 +39,8 @@
       Executable="$targetnametoken$.exe"
       EntryPoint="$targetentrypoint$">
       <uap:VisualElements
-        DisplayName="StormKeys"
-        Description="StormKeys"
+        DisplayName="STORM KEYS"
+        Description="STORM KEYS"
         BackgroundColor="transparent"
         Square150x150Logo="Assets\Square150x150Logo.png"
         Square44x44Logo="Assets\Square44x44Logo.png">

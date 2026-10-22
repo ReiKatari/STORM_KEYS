@@ -13,6 +13,7 @@ public sealed partial class MainWindow : Window
     private bool _isQuittingFromTray;
     private StormTrayService? _trayService;
 
+    public StormTrayService? TrayService => _trayService;
     public static MainWindow? Instance { get; private set; }
 
     [DllImport("shell32.dll", SetLastError = true)]
@@ -46,8 +47,8 @@ public sealed partial class MainWindow : Window
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
 
-        Title = "STORM KEYS 1.0.3";
-        AppWindow.Title = "STORM KEYS 1.0.3";
+        Title = "STORM KEYS 1.0.4";
+        AppWindow.Title = "STORM KEYS 1.0.4";
 
         // Получаем дескриптор Win32 окна
         var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(this);

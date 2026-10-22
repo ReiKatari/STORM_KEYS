@@ -24,6 +24,9 @@ public sealed partial class MainPage : Page
     public bool Not(bool val) => !val;
     public bool InvBool(bool val) => !val;
     public SolidColorBrush HexToBrush(string? hex) => BrushHelper.FromHex(hex);
+    public string FormatGenLen(int len) => $"{len} симв.";
+    public double IntToDouble(int val) => val;
+    public void DoubleToGenLen(double val) => ViewModel.GenPasswordLength = (int)Math.Round(val);
 
     public List<string> CategoryFilterOptions { get; } = new()
     {
@@ -33,6 +36,9 @@ public sealed partial class MainPage : Page
         "API Ключи",
         "Сертификаты / SSH",
         "Серверы",
+        "Банковские карты",
+        "Сети Wi-Fi",
+        "Крипто / Seed",
         "Другое"
     };
 
@@ -56,12 +62,15 @@ public sealed partial class MainPage : Page
 
     public List<string> CategoryEditOptions { get; } = new()
     {
-        "Учетная запись (Логин/Пароль)",
-        "Лицензионный ключ ПО",
-        "API Ключ / Секретный токен",
-        "Сертификат / SSH Ключ",
-        "Сервер / База данных",
-        "Другое"
+        "Учетная запись (Сайт / Приложение)",
+        "Лицензионный ключ ПО / Игры",
+        "API Ключ / Bearer Токен / Webhook",
+        "Сертификат / SSH / PGP Ключ",
+        "Сервер / База данных / RDP / VPN",
+        "Защищённая заметка / PIN-код",
+        "Банковская карта / Платёжные данные",
+        "Сеть Wi-Fi / Роутер",
+        "Криптокошелёк / Seed-фраза"
     };
 
     public List<string> AutoLockOptions { get; } = new()
@@ -76,7 +85,11 @@ public sealed partial class MainPage : Page
     public int EditCategoryIndex
     {
         get => (int)ViewModel.EditCategory;
-        set => ViewModel.EditCategory = (KeyCategory)value;
+        set
+        {
+            if (value >= 0 && value <= 8)
+                ViewModel.EditCategory = (KeyCategory)value;
+        }
     }
 
     public int AutoLockIndex
@@ -114,7 +127,6 @@ public sealed partial class MainPage : Page
 
     private void MainPage_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
     {
-        // Быстрые клавиши: Ctrl+F (Поиск), Ctrl+N (Создать), Ctrl+L (Заблокировать)
         var ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control);
         bool isCtrlDown = (ctrl & Windows.UI.Core.CoreVirtualKeyStates.Down) == Windows.UI.Core.CoreVirtualKeyStates.Down;
 
@@ -130,6 +142,19 @@ public sealed partial class MainPage : Page
             if (!ViewModel.IsVaultLocked)
             {
                 ViewModel.OpenAddDialogCommand.Execute(null);
+                e.Handled = true;
+                return;
+            }
+        }
+
+        if (isCtrlDown && e.Key == Windows.System.VirtualKey.V)
+        {
+            if (!ViewModel.IsVaultLocked &&
+                !ViewModel.IsEditDialogVisible &&
+                !ViewModel.IsSettingsDialogVisible &&
+                FocusManager.GetFocusedElement(this.XamlRoot) is not TextBox and not PasswordBox)
+            {
+                _ = ViewModel.ImportFromClipboardCommand.ExecuteAsync(null);
                 e.Handled = true;
                 return;
             }
@@ -179,7 +204,6 @@ public sealed partial class MainPage : Page
         {
             if (ViewModel == null) return;
 
-            // Стилизованная подсказка (TeachingTip)
             if (ViewModel.IsTeachingTipOpen)
             {
                 ViewModel.IsTeachingTipOpen = false;
@@ -187,7 +211,6 @@ public sealed partial class MainPage : Page
                 return;
             }
 
-            // Окно настроек
             if (ViewModel.IsSettingsDialogVisible)
             {
                 ViewModel.IsSettingsDialogVisible = false;
@@ -195,7 +218,6 @@ public sealed partial class MainPage : Page
                 return;
             }
 
-            // Окно добавления/редактирования записи
             if (ViewModel.IsEditDialogVisible)
             {
                 ViewModel.IsEditDialogVisible = false;
@@ -203,7 +225,6 @@ public sealed partial class MainPage : Page
                 return;
             }
 
-            // Диалог импорта
             if (ViewModel.IsImportDialogVisible)
             {
                 ViewModel.IsImportDialogVisible = false;
@@ -211,7 +232,6 @@ public sealed partial class MainPage : Page
                 return;
             }
 
-            // Диалог "О программе"
             if (ViewModel.IsAboutDialogVisible)
             {
                 ViewModel.IsAboutDialogVisible = false;
@@ -229,6 +249,50 @@ public sealed partial class MainPage : Page
     private void AddEntry_Click(object sender, RoutedEventArgs e)
     {
         ViewModel.OpenAddDialog();
+    }
+
+    private void QuickAddTemplate_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is string templateKey)
+        {
+            ViewModel.OpenAddDialogWithTemplate(templateKey);
+        }
+    }
+
+    private void ApplyTemplateInDialog_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is string templateKey)
+        {
+            ViewModel.ApplyEntryTemplate(templateKey);
+        }
+    }
+
+    private void SelectIcon_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is string glyph)
+        {
+            ViewModel.SelectCustomIcon(glyph);
+        }
+    }
+
+    private void GenLenPreset_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is string lenStr)
+        {
+            ViewModel.SetGeneratorLengthPreset(lenStr);
+        }
+    }
+
+    private void GenSlider_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
+    {
+        if (ViewModel != null)
+        {
+            int newLen = (int)Math.Round(e.NewValue);
+            if (newLen >= 6 && newLen <= 64 && ViewModel.GenPasswordLength != newLen)
+            {
+                ViewModel.GenPasswordLength = newLen;
+            }
+        }
     }
 
     private void EditEntry_Click(object sender, RoutedEventArgs e)
@@ -271,6 +335,22 @@ public sealed partial class MainPage : Page
         }
     }
 
+    private void QuickAutoType_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is KeyEntry entry)
+        {
+            _ = ViewModel.AutoTypeEntryCommand.ExecuteAsync(entry);
+        }
+    }
+
+    private void AutoTypeTotp_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is KeyEntry entry)
+        {
+            _ = ViewModel.AutoTypeTotpCommand.ExecuteAsync(entry);
+        }
+    }
+
     private void PeekSecret_Click(object sender, RoutedEventArgs e)
     {
         if (sender is Button btn && btn.Tag is KeyEntry entry)
@@ -292,6 +372,42 @@ public sealed partial class MainPage : Page
         if (sender is Button btn && btn.Tag is KeyEntry entry)
         {
             ViewModel.CopyFullSummary(entry);
+        }
+    }
+
+    private async void PickTargetApp_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var picker = new FileOpenPicker();
+            if (MainWindow.Instance != null)
+            {
+                var hwnd = WindowNative.GetWindowHandle(MainWindow.Instance);
+                InitializeWithWindow.Initialize(picker, hwnd);
+            }
+
+            picker.ViewMode = PickerViewMode.List;
+            picker.SuggestedStartLocation = PickerLocationId.ComputerFolder;
+            picker.FileTypeFilter.Add(".exe");
+            picker.FileTypeFilter.Add(".lnk");
+            picker.FileTypeFilter.Add(".rdp");
+            picker.FileTypeFilter.Add(".bat");
+            picker.FileTypeFilter.Add(".cmd");
+
+            var file = await picker.PickSingleFileAsync();
+            if (file != null)
+            {
+                ViewModel.EditTargetApp = file.Path;
+                if (string.IsNullOrWhiteSpace(ViewModel.EditTitle))
+                {
+                    ViewModel.EditTitle = Path.GetFileNameWithoutExtension(file.Name);
+                }
+                ViewModel.StatusMessage = $"Привязано приложение: {file.Name}";
+            }
+        }
+        catch (Exception ex)
+        {
+            ViewModel.StatusMessage = $"Ошибка выбора программы: {ex.Message}";
         }
     }
 
@@ -322,7 +438,6 @@ public sealed partial class MainPage : Page
             ViewModel.StatusMessage = $"Ошибка сохранения аварийного листа: {ex.Message}";
         }
     }
-
 
     private void ToggleFavorite_Click(object sender, RoutedEventArgs e)
     {
@@ -428,6 +543,8 @@ public sealed partial class MainPage : Page
             picker.SuggestedStartLocation = PickerLocationId.DocumentsLibrary;
             picker.FileTypeFilter.Add(".csv");
             picker.FileTypeFilter.Add(".json");
+            picker.FileTypeFilter.Add(".env");
+            picker.FileTypeFilter.Add(".txt");
 
             var file = await picker.PickSingleFileAsync();
             if (file != null)

@@ -14,6 +14,7 @@ public interface ITotpService
     string GenerateSecretKey(int byteLength = 20);
     string FormatCode(string code);
     string GenerateOtpAuthUri(string secret, string accountName, string issuer = "STORM KEYS");
+    bool TryParseOtpAuthInput(string? rawInput, out string cleanSecret, out string? issuer, out string? account);
 }
 
 public sealed class TotpService : ITotpService
@@ -27,7 +28,14 @@ public sealed class TotpService : ITotpService
 
         try
         {
-            byte[] key = Base32Decode(base32Secret);
+            string secretToUse = base32Secret;
+            if (secretToUse.StartsWith("otpauth://", StringComparison.OrdinalIgnoreCase))
+            {
+                if (TryParseOtpAuthInput(secretToUse, out string extracted, out _, out _))
+                    secretToUse = extracted;
+            }
+
+            byte[] key = Base32Decode(secretToUse);
             if (key.Length == 0)
                 return string.Empty;
 
@@ -75,7 +83,12 @@ public sealed class TotpService : ITotpService
         if (string.IsNullOrWhiteSpace(base32Secret))
             return false;
 
-        string clean = base32Secret.Trim().Replace(" ", "").ToUpperInvariant();
+        if (base32Secret.StartsWith("otpauth://", StringComparison.OrdinalIgnoreCase))
+        {
+            return TryParseOtpAuthInput(base32Secret, out string extracted, out _, out _) && ValidateSecret(extracted);
+        }
+
+        string clean = base32Secret.Trim().Replace(" ", "").Replace("-", "").ToUpperInvariant();
         foreach (char c in clean)
         {
             if (Array.IndexOf(Base32Chars, c) < 0 && c != '=')
@@ -83,6 +96,84 @@ public sealed class TotpService : ITotpService
         }
 
         return clean.Length >= 8;
+    }
+
+    public bool TryParseOtpAuthInput(string? rawInput, out string cleanSecret, out string? issuer, out string? account)
+    {
+        cleanSecret = string.Empty;
+        issuer = null;
+        account = null;
+
+        if (string.IsNullOrWhiteSpace(rawInput))
+            return false;
+
+        string trimmed = rawInput.Trim();
+
+        // 1. Формат otpauth://totp/Issuer:Account?secret=BASE32&issuer=Issuer
+        if (trimmed.StartsWith("otpauth://", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                if (Uri.TryCreate(trimmed, UriKind.Absolute, out var uri))
+                {
+                    string label = Uri.UnescapeDataString(uri.AbsolutePath.Trim('/'));
+                    if (!string.IsNullOrEmpty(label))
+                    {
+                        int colonIdx = label.IndexOf(':');
+                        if (colonIdx > 0)
+                        {
+                            issuer = label[..colonIdx].Trim();
+                            account = label[(colonIdx + 1)..].Trim();
+                        }
+                        else
+                        {
+                            account = label.Trim();
+                        }
+                    }
+
+                    string query = uri.Query.TrimStart('?');
+                    var pairs = query.Split('&', StringSplitOptions.RemoveEmptyEntries);
+                    foreach (var pair in pairs)
+                    {
+                        var kv = pair.Split('=', 2);
+                        if (kv.Length == 2)
+                        {
+                            string k = Uri.UnescapeDataString(kv[0]).Trim().ToLowerInvariant();
+                            string v = Uri.UnescapeDataString(kv[1]).Trim();
+                            if (k == "secret")
+                            {
+                                cleanSecret = v.Replace(" ", "").Replace("-", "").ToUpperInvariant();
+                            }
+                            else if (k == "issuer" && !string.IsNullOrWhiteSpace(v))
+                            {
+                                issuer = v;
+                            }
+                        }
+                    }
+
+                    return !string.IsNullOrEmpty(cleanSecret) && ValidateSecret(cleanSecret);
+                }
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        // 2. Обычный Base32 секрет (с возможными пробелами или дефисами)
+        string candidate = trimmed.Replace(" ", "").Replace("-", "").ToUpperInvariant();
+        if (candidate.Length >= 8)
+        {
+            foreach (char c in candidate)
+            {
+                if (Array.IndexOf(Base32Chars, c) < 0 && c != '=')
+                    return false;
+            }
+            cleanSecret = candidate;
+            return true;
+        }
+
+        return false;
     }
 
     public string GenerateNewSecret(int byteLength = 20)
@@ -94,8 +185,8 @@ public sealed class TotpService : ITotpService
 
     public string GenerateSecretKey(int byteLength = 20) => GenerateNewSecret(byteLength);
 
-    public string FormatCode(string code) => string.IsNullOrEmpty(code) 
-        ? string.Empty 
+    public string FormatCode(string code) => string.IsNullOrEmpty(code)
+        ? string.Empty
         : (code.Length == 6 ? $"{code[..3]} {code[3..]}" : code);
 
     public string GenerateOtpAuthUri(string secret, string accountName, string issuer = "STORM KEYS")

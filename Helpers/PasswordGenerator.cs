@@ -7,9 +7,12 @@ namespace StormKeys.Helpers;
 
 public static class PasswordGenerator
 {
-    private const string UppercaseChars = "ABCDEFGHJKLMNPQRSTUVWXYZ";
-    private const string LowercaseChars = "abcdefghijkmnpqrstuvwxyz";
-    private const string DigitChars = "23456789";
+    private const string UppercaseNoAmbiguous = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+    private const string UppercaseFull = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    private const string LowercaseNoAmbiguous = "abcdefghijkmnpqrstuvwxyz";
+    private const string LowercaseFull = "abcdefghijklmnopqrstuvwxyz";
+    private const string DigitNoAmbiguous = "23456789";
+    private const string DigitFull = "0123456789";
     private const string SpecialChars = "!@#$%^&*-_=+";
 
     private static readonly string[] PassphraseWords = new[]
@@ -24,25 +27,38 @@ public static class PasswordGenerator
         "Pinnacle", "Fortress", "Nexus", "Equinox", "Mercury", "Astral", "Infinity", "Sapphire"
     };
 
-    public static string Generate(int length = 20, bool useUpper = true, bool useLower = true, bool useDigits = true, bool useSpecial = true)
+    public static string Generate(
+        int length = 20,
+        bool useUpper = true,
+        bool useLower = true,
+        bool useDigits = true,
+        bool useSpecial = true,
+        bool excludeAmbiguous = true)
     {
+        if (length < 4) length = 4;
+        if (length > 128) length = 128;
+
+        string upperPool = excludeAmbiguous ? UppercaseNoAmbiguous : UppercaseFull;
+        string lowerPool = excludeAmbiguous ? LowercaseNoAmbiguous : LowercaseFull;
+        string digitPool = excludeAmbiguous ? DigitNoAmbiguous : DigitFull;
+
         var charPool = new StringBuilder();
         var requiredChars = new List<char>();
 
         if (useUpper)
         {
-            charPool.Append(UppercaseChars);
-            requiredChars.Add(UppercaseChars[RandomNumberGenerator.GetInt32(UppercaseChars.Length)]);
+            charPool.Append(upperPool);
+            requiredChars.Add(upperPool[RandomNumberGenerator.GetInt32(upperPool.Length)]);
         }
         if (useLower)
         {
-            charPool.Append(LowercaseChars);
-            requiredChars.Add(LowercaseChars[RandomNumberGenerator.GetInt32(LowercaseChars.Length)]);
+            charPool.Append(lowerPool);
+            requiredChars.Add(lowerPool[RandomNumberGenerator.GetInt32(lowerPool.Length)]);
         }
         if (useDigits)
         {
-            charPool.Append(DigitChars);
-            requiredChars.Add(DigitChars[RandomNumberGenerator.GetInt32(DigitChars.Length)]);
+            charPool.Append(digitPool);
+            requiredChars.Add(digitPool[RandomNumberGenerator.GetInt32(digitPool.Length)]);
         }
         if (useSpecial)
         {
@@ -52,9 +68,9 @@ public static class PasswordGenerator
 
         if (charPool.Length == 0)
         {
-            charPool.Append(LowercaseChars + DigitChars);
-            requiredChars.Add(LowercaseChars[RandomNumberGenerator.GetInt32(LowercaseChars.Length)]);
-            requiredChars.Add(DigitChars[RandomNumberGenerator.GetInt32(DigitChars.Length)]);
+            charPool.Append(lowerPool + digitPool);
+            requiredChars.Add(lowerPool[RandomNumberGenerator.GetInt32(lowerPool.Length)]);
+            requiredChars.Add(digitPool[RandomNumberGenerator.GetInt32(digitPool.Length)]);
         }
 
         string pool = charPool.ToString();
@@ -74,6 +90,19 @@ public static class PasswordGenerator
         }
 
         return new string(resultList.ToArray());
+    }
+
+    public static string GeneratePin(int length = 6)
+    {
+        if (length < 4) length = 4;
+        if (length > 16) length = 16;
+
+        var sb = new StringBuilder(length);
+        for (int i = 0; i < length; i++)
+        {
+            sb.Append(DigitFull[RandomNumberGenerator.GetInt32(DigitFull.Length)]);
+        }
+        return sb.ToString();
     }
 
     public static string GeneratePassphrase(int wordCount = 4, string separator = "-", bool includeDigitsAndSymbol = true)

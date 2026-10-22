@@ -32,35 +32,50 @@ public class ImportExportService : IImportExportService
     public async Task<ImportResult> ImportFromCsvAsync(string filePath)
     {
         var result = new ImportResult();
+        if (!File.Exists(filePath))
+            return result;
+
+        // Если это .env или .txt файл без CSV-заголовка, парсим через универсальный анализатор
+        if (filePath.EndsWith(".env", StringComparison.OrdinalIgnoreCase) ||
+            filePath.EndsWith(".txt", StringComparison.OrdinalIgnoreCase))
+        {
+            string rawText = await File.ReadAllTextAsync(filePath, Encoding.UTF8);
+            return ImportFromClipboardText(rawText);
+        }
+
         var lines = await File.ReadAllLinesAsync(filePath, Encoding.UTF8);
 
         if (lines.Length <= 1)
+        {
+            if (lines.Length == 1)
+                return ImportFromClipboardText(lines[0]);
             return result;
+        }
 
         string headerLine = lines[0].Trim();
         var headers = ParseCsvRow(headerLine);
 
-        // Маппинг колонок
-        int nameIdx = -1, urlIdx = -1, userIdx = -1, passIdx = -1, noteIdx = -1;
+        int nameIdx = -1, urlIdx = -1, userIdx = -1, passIdx = -1, noteIdx = -1, totpIdx = -1;
 
         for (int i = 0; i < headers.Count; i++)
         {
             string h = headers[i].ToLowerInvariant().Trim();
-            if (h.Contains("user") || h.Contains("login") || h.Contains("email")) 
+            if (h.Contains("totp") || h.Contains("2fa") || h.Contains("otp"))
+                totpIdx = i;
+            else if (h.Contains("user") || h.Contains("login") || h.Contains("email"))
                 userIdx = i;
-            else if (h.Contains("pass") || h.Contains("secret") || (h.Contains("key") && !h.Contains("category"))) 
+            else if (h.Contains("pass") || h.Contains("secret") || (h.Contains("key") && !h.Contains("category")))
                 passIdx = i;
-            else if (h.Contains("url") || h.Contains("uri") || h.Contains("web") || h.Contains("host")) 
+            else if (h.Contains("url") || h.Contains("uri") || h.Contains("web") || h.Contains("host"))
                 urlIdx = i;
-            else if (h == "title" || h == "name" || h.Contains("title") || h.Contains("service") || h.Contains("app")) 
+            else if (h == "title" || h == "name" || h.Contains("title") || h.Contains("service") || h.Contains("app"))
                 nameIdx = i;
-            else if (h.Contains("note") || h.Contains("comment") || h.Contains("desc")) 
+            else if (h.Contains("note") || h.Contains("comment") || h.Contains("desc"))
                 noteIdx = i;
-            else if (h.Contains("name") && !h.Contains("user")) 
+            else if (h.Contains("name") && !h.Contains("user"))
                 nameIdx = i;
         }
 
-        // Если не найдено имя, но есть URL
         if (nameIdx == -1 && urlIdx != -1) nameIdx = urlIdx;
 
         result.FormatDetected = "CSV (Браузер / Менеджер паролей)";
@@ -78,11 +93,12 @@ public class ImportExportService : IImportExportService
             string user = userIdx >= 0 && userIdx < cols.Count ? cols[userIdx] : "";
             string pass = passIdx >= 0 && passIdx < cols.Count ? cols[passIdx] : "";
             string notes = noteIdx >= 0 && noteIdx < cols.Count ? cols[noteIdx] : "";
+            string totp = totpIdx >= 0 && totpIdx < cols.Count ? cols[totpIdx] : "";
 
             if (string.IsNullOrWhiteSpace(title) && !string.IsNullOrWhiteSpace(url))
                 title = CleanUrlToTitle(url);
 
-            if (string.IsNullOrWhiteSpace(user) && string.IsNullOrWhiteSpace(pass))
+            if (string.IsNullOrWhiteSpace(user) && string.IsNullOrWhiteSpace(pass) && string.IsNullOrWhiteSpace(totp))
             {
                 result.SkippedCount++;
                 continue;
@@ -94,6 +110,7 @@ public class ImportExportService : IImportExportService
                 TargetAppOrUrl = url,
                 UsernameOrEmail = user,
                 SecretValue = pass,
+                TotpSecret = totp,
                 Notes = notes,
                 Category = KeyCategory.Account,
                 CreatedAt = DateTimeOffset.UtcNow,
@@ -125,12 +142,14 @@ public class ImportExportService : IImportExportService
                 string notes = item.TryGetProperty("notes", out var nt) ? nt.GetString() ?? "" : "";
                 string username = "";
                 string password = "";
+                string totp = "";
                 string uri = "";
 
                 if (item.TryGetProperty("login", out var loginElem))
                 {
                     if (loginElem.TryGetProperty("username", out var u)) username = u.GetString() ?? "";
                     if (loginElem.TryGetProperty("password", out var p)) password = p.GetString() ?? "";
+                    if (loginElem.TryGetProperty("totp", out var t)) totp = t.GetString() ?? "";
                     if (loginElem.TryGetProperty("uris", out var urisElem) && urisElem.ValueKind == JsonValueKind.Array)
                     {
                         foreach (var uObj in urisElem.EnumerateArray())
@@ -151,6 +170,7 @@ public class ImportExportService : IImportExportService
                         Title = string.IsNullOrWhiteSpace(name) ? CleanUrlToTitle(uri) : name,
                         UsernameOrEmail = username,
                         SecretValue = password,
+                        TotpSecret = totp,
                         TargetAppOrUrl = uri,
                         Notes = notes,
                         Category = KeyCategory.Account
@@ -172,14 +192,18 @@ public class ImportExportService : IImportExportService
                 string secret = GetPropString(item, "SecretValue", "password", "secret", "key") ?? "";
                 string target = GetPropString(item, "TargetAppOrUrl", "url", "target", "app") ?? "";
                 string notes = GetPropString(item, "Notes", "notes", "note") ?? "";
+                string totp = GetPropString(item, "TotpSecret", "totp", "otp") ?? "";
+                string customIcon = GetPropString(item, "CustomIconGlyph") ?? "";
 
-                if (!string.IsNullOrWhiteSpace(user) || !string.IsNullOrWhiteSpace(secret))
+                if (!string.IsNullOrWhiteSpace(user) || !string.IsNullOrWhiteSpace(secret) || !string.IsNullOrWhiteSpace(totp))
                 {
                     result.ImportedEntries.Add(new KeyEntry
                     {
                         Title = title,
                         UsernameOrEmail = user,
                         SecretValue = secret,
+                        TotpSecret = totp,
+                        CustomIconGlyph = customIcon,
                         TargetAppOrUrl = target,
                         Notes = notes,
                         Category = KeyCategory.Account
@@ -198,9 +222,56 @@ public class ImportExportService : IImportExportService
         if (string.IsNullOrWhiteSpace(text))
             return result;
 
+        string trimmed = text.Trim();
+        var totpSvc = new TotpService();
+
+        // 1. Формат otpauth://totp/... (QR/URI 2FA)
+        if (trimmed.StartsWith("otpauth://", StringComparison.OrdinalIgnoreCase) &&
+            totpSvc.TryParseOtpAuthInput(trimmed, out string cleanSecret, out string? issuer, out string? account))
+        {
+            result.FormatDetected = "URI 2FA (otpauth://)";
+            result.ImportedEntries.Add(new KeyEntry
+            {
+                Title = !string.IsNullOrWhiteSpace(issuer) ? issuer : (!string.IsNullOrWhiteSpace(account) ? account : "2FA Токен"),
+                UsernameOrEmail = account ?? string.Empty,
+                TotpSecret = cleanSecret,
+                Category = KeyCategory.Account,
+                Notes = "Импортировано из URI двухфакторной аутентификации (otpauth://)"
+            });
+            result.ImportedCount++;
+            return result;
+        }
+
+        // 2. Формат URL с учётными данными: https://user:pass@example.com или ssh://user:pass@host:22
+        if ((trimmed.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+             trimmed.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+             trimmed.StartsWith("ssh://", StringComparison.OrdinalIgnoreCase) ||
+             trimmed.StartsWith("ftp://", StringComparison.OrdinalIgnoreCase) ||
+             trimmed.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase) ||
+             trimmed.StartsWith("mysql://", StringComparison.OrdinalIgnoreCase)) &&
+            Uri.TryCreate(trimmed, UriKind.Absolute, out var credUri) &&
+            !string.IsNullOrWhiteSpace(credUri.UserInfo))
+        {
+            var up = credUri.UserInfo.Split(':', 2);
+            string uName = Uri.UnescapeDataString(up[0]);
+            string uPass = up.Length > 1 ? Uri.UnescapeDataString(up[1]) : string.Empty;
+            bool isServer = credUri.Scheme is "ssh" or "ftp" or "postgres" or "mysql";
+            result.FormatDetected = "URI с учётными данными";
+            result.ImportedEntries.Add(new KeyEntry
+            {
+                Title = credUri.Host,
+                UsernameOrEmail = uName,
+                SecretValue = uPass,
+                TargetAppOrUrl = $"{credUri.Scheme}://{credUri.Authority}{credUri.AbsolutePath}",
+                Category = isServer ? KeyCategory.Server : KeyCategory.Account
+            });
+            result.ImportedCount++;
+            return result;
+        }
+
         string[] lines = text.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
 
-        // Проверяем табличный формат с табуляцией (\t)
+        // 3. Проверяем табличный формат с табуляцией (\t)
         bool hasTabs = false;
         foreach (var l in lines)
         {
@@ -277,15 +348,16 @@ public class ImportExportService : IImportExportService
                 return result;
         }
 
-        // Проверяем паттерн "Ключ активации": XXXXX-XXXXX-XXXXX-XXXXX-XXXXX (25 символов)
+        // 4. Проверяем паттерн "Ключ активации": XXXXX-XXXXX-XXXXX-XXXXX-XXXXX (или 4 группы)
         var licenseRegex = new Regex(@"([A-Z0-9]{4,5}-[A-Z0-9]{4,5}-[A-Z0-9]{4,5}-[A-Z0-9]{4,5}(-[A-Z0-9]{4,5})?)", RegexOptions.IgnoreCase);
         var match = licenseRegex.Match(text);
         if (match.Success)
         {
+            result.FormatDetected = "Лицензионный ключ ПО";
             result.ImportedEntries.Add(new KeyEntry
             {
                 Title = "Лицензионный ключ из буфера",
-                SecretValue = match.Value,
+                SecretValue = match.Value.ToUpperInvariant(),
                 Category = KeyCategory.License,
                 Notes = text
             });
@@ -293,16 +365,58 @@ public class ImportExportService : IImportExportService
             return result;
         }
 
-        // Проверяем парсинг пар "Key: Value"
+        // 5. Проверяем формат .env переменных (KEY=VALUE)
+        var envEntries = new List<KeyEntry>();
+        foreach (var rawLine in lines)
+        {
+            string l = rawLine.Trim();
+            if (l.StartsWith('#') || !l.Contains('=')) continue;
+            int eqIdx = l.IndexOf('=');
+            if (eqIdx > 1 && eqIdx < l.Length - 1)
+            {
+                string envKey = l[..eqIdx].Trim();
+                string envVal = l[(eqIdx + 1)..].Trim().Trim('"', '\'');
+                if (Regex.IsMatch(envKey, @"^[A-Z0-9_]{3,}$") && !string.IsNullOrWhiteSpace(envVal))
+                {
+                    envEntries.Add(new KeyEntry
+                    {
+                        Title = envKey,
+                        UsernameOrEmail = envKey,
+                        SecretValue = envVal,
+                        Category = KeyCategory.ApiKey,
+                        Notes = "Импортировано из переменной окружения (.env)"
+                    });
+                }
+            }
+        }
+        if (envEntries.Count > 0)
+        {
+            result.FormatDetected = "Переменные .env / API Ключи";
+            result.ImportedEntries.AddRange(envEntries);
+            result.ImportedCount = envEntries.Count;
+            return result;
+        }
+
+        // 6. Проверяем парсинг пар "Key: Value" или "login:password"
         string title = "Запись из буфера";
         string user = "";
         string pass = "";
         string url = "";
+        string totpSecret = "";
         string notes = "";
 
         foreach (var rawLine in lines)
         {
             var line = rawLine.Trim();
+            if (line.StartsWith("otpauth://", StringComparison.OrdinalIgnoreCase) &&
+                totpSvc.TryParseOtpAuthInput(line, out string parsedSecret, out string? iss, out string? acc))
+            {
+                totpSecret = parsedSecret;
+                if (title == "Запись из буфера" && !string.IsNullOrWhiteSpace(iss)) title = iss;
+                if (string.IsNullOrEmpty(user) && !string.IsNullOrWhiteSpace(acc)) user = acc;
+                continue;
+            }
+
             int colonIdx = line.IndexOf(':');
             if (colonIdx > 0 && colonIdx < line.Length - 1)
             {
@@ -313,35 +427,53 @@ public class ImportExportService : IImportExportService
                     user = val;
                 else if (key.Contains("pass") || key.Contains("пароль") || key.Contains("secret") || key.Contains("ключ") || key.Contains("key"))
                     pass = val;
+                else if (key.Contains("2fa") || key.Contains("totp") || key.Contains("otp"))
+                    totpSecret = val;
                 else if (key.Contains("url") || key.Contains("сайт") || key.Contains("ссылка") || key.Contains("http"))
                     url = val;
                 else if (key.Contains("title") || key.Contains("название") || key.Contains("сервис") || key.Contains("программа"))
                     title = val;
+                else if (line.IndexOf("://") < 0 && string.IsNullOrEmpty(user) && string.IsNullOrEmpty(pass) && !key.Contains(' '))
+                {
+                    user = line.Substring(0, colonIdx).Trim();
+                    pass = val;
+                }
                 else
                     notes += (string.IsNullOrEmpty(notes) ? "" : "\n") + line;
             }
-            else if (line.Contains(":") && line.IndexOf("://") < 0)
+        }
+
+        // Если в буфере просто одиночный пароль или токен (1 строка без пробелов)
+        if (string.IsNullOrWhiteSpace(user) && string.IsNullOrWhiteSpace(pass) && lines.Length == 1 && !trimmed.Contains(' '))
+        {
+            if (totpSvc.ValidateSecret(trimmed) && trimmed.Length is >= 16 and <= 32)
             {
-                // Формат "user:password"
-                var parts = line.Split(':', 2);
-                if (parts.Length == 2 && string.IsNullOrEmpty(user) && string.IsNullOrEmpty(pass))
-                {
-                    user = parts[0].Trim();
-                    pass = parts[1].Trim();
-                }
+                totpSecret = trimmed.ToUpperInvariant();
+                title = "Ключ 2FA (TOTP)";
+            }
+            else
+            {
+                pass = trimmed;
+                title = trimmed.StartsWith("sk-") || trimmed.StartsWith("ghp_") || trimmed.StartsWith("eyJ")
+                    ? "API Токен из буфера"
+                    : "Ключ / Пароль из буфера";
             }
         }
 
-        if (!string.IsNullOrWhiteSpace(user) || !string.IsNullOrWhiteSpace(pass))
+        if (!string.IsNullOrWhiteSpace(user) || !string.IsNullOrWhiteSpace(pass) || !string.IsNullOrWhiteSpace(totpSecret))
         {
+            if (title == "Запись из буфера" && !string.IsNullOrWhiteSpace(url))
+                title = CleanUrlToTitle(url);
+
             result.ImportedEntries.Add(new KeyEntry
             {
                 Title = title,
                 UsernameOrEmail = user,
                 SecretValue = pass,
+                TotpSecret = totpSecret,
                 TargetAppOrUrl = url,
                 Notes = notes,
-                Category = KeyCategory.Account
+                Category = title.Contains("API") ? KeyCategory.ApiKey : KeyCategory.Account
             });
             result.ImportedCount++;
         }
@@ -352,17 +484,16 @@ public class ImportExportService : IImportExportService
     public async Task ExportToCsvAsync(IEnumerable<KeyEntry> entries, string filePath)
     {
         var sb = new StringBuilder();
-        sb.AppendLine("Title,Category,UsernameOrEmail,SecretValue,TargetAppOrUrl,ExpirationDate,Notes");
+        sb.AppendLine("Title,Category,UsernameOrEmail,SecretValue,TotpSecret,TargetAppOrUrl,ExpirationDate,Notes");
 
         foreach (var e in entries)
         {
-            string line = $"{EscapeCsv(e.Title)},{EscapeCsv(e.Category.ToString())},{EscapeCsv(e.UsernameOrEmail)},{EscapeCsv(e.SecretValue)},{EscapeCsv(e.TargetAppOrUrl)},{EscapeCsv(e.ExpirationDate?.ToString("yyyy-MM-dd") ?? "")},{EscapeCsv(e.Notes)}";
+            string line = $"{EscapeCsv(e.Title)},{EscapeCsv(e.Category.ToString())},{EscapeCsv(e.UsernameOrEmail)},{EscapeCsv(e.SecretValue)},{EscapeCsv(e.TotpSecret)},{EscapeCsv(e.TargetAppOrUrl)},{EscapeCsv(e.ExpirationDate?.ToString("yyyy-MM-dd") ?? "")},{EscapeCsv(e.Notes)}";
             sb.AppendLine(line);
         }
 
         await File.WriteAllTextAsync(filePath, sb.ToString(), Encoding.UTF8);
     }
-
 
     public async Task ExportEmergencyRecoveryKitAsync(IEnumerable<KeyEntry> entries, string filePath)
     {

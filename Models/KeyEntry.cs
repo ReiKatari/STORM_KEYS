@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text.Json.Serialization;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -10,12 +11,15 @@ namespace StormKeys.Models;
 
 public enum KeyCategory
 {
-    Account,        // Логины и пароли браузеров/приложений
-    License,        // Лицензионные ключи ПО, Windows, IDE
-    ApiKey,         // API токены, секреты, токены доступа
-    Certificate,    // SSL/TLS сертификаты, SSH ключи
-    Server,         // Доступы к серверам, базам данных, RDP
-    Other           // Заметки, пин-коды, прочее
+    Account = 0,        // Логины и пароли сайтов / браузеров / приложений
+    License = 1,        // Лицензионные ключи ПО, Windows, игр, IDE
+    ApiKey = 2,         // API токены, секреты, Bearer, Webhook
+    Certificate = 3,    // SSL/TLS сертификаты, SSH, PGP ключи
+    Server = 4,         // Доступы к серверам, базам данных, RDP, VPN
+    Other = 5,          // Защищённые заметки, пин-коды, документы
+    BankCard = 6,       // Банковские карты, CVV, платёжные реквизиты
+    Wifi = 7,           // Сети Wi-Fi, роутеры, точки доступа
+    Crypto = 8          // Криптокошельки, Seed-фразы, приватные ключи
 }
 
 public class PasswordHistoryItem
@@ -24,11 +28,45 @@ public class PasswordHistoryItem
     public DateTimeOffset ChangedAt { get; set; } = DateTimeOffset.Now;
 }
 
+public class IconOptionItem
+{
+    public string Glyph { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+}
+
 public partial class KeyEntry : ObservableObject
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public string Title { get; set; } = string.Empty;
-    public KeyCategory Category { get; set; } = KeyCategory.Account;
+
+    private KeyCategory _category = KeyCategory.Account;
+    public KeyCategory Category
+    {
+        get => _category;
+        set
+        {
+            if (SetProperty(ref _category, value))
+            {
+                OnPropertyChanged(nameof(CategoryDisplayName));
+                OnPropertyChanged(nameof(CategoryGlyph));
+                OnPropertyChanged(nameof(EffectiveGlyph));
+            }
+        }
+    }
+
+    private string _customIconGlyph = string.Empty;
+    public string CustomIconGlyph
+    {
+        get => _customIconGlyph;
+        set
+        {
+            if (SetProperty(ref _customIconGlyph, value ?? string.Empty))
+            {
+                OnPropertyChanged(nameof(EffectiveGlyph));
+            }
+        }
+    }
+
     public string UsernameOrEmail { get; set; } = string.Empty;
 
     private string _secretValue = string.Empty;
@@ -68,7 +106,7 @@ public partial class KeyEntry : ObservableObject
     public string DisplayedSecret => IsSecretRevealed ? SecretValue : MaskedSecret;
 
     [JsonIgnore]
-    public string PeekGlyph => IsSecretRevealed ? "" : "";
+    public string PeekGlyph => IsSecretRevealed ? "\uED1A" : "\uE7B3";
 
     private string _targetAppOrUrl = string.Empty;
     public string TargetAppOrUrl
@@ -79,6 +117,11 @@ public partial class KeyEntry : ObservableObject
             if (SetProperty(ref _targetAppOrUrl, value))
             {
                 OnPropertyChanged(nameof(HasWebsiteUrl));
+                OnPropertyChanged(nameof(HasLaunchTarget));
+                OnPropertyChanged(nameof(HasLaunchTargetVisibility));
+                OnPropertyChanged(nameof(IsAppBinding));
+                OnPropertyChanged(nameof(LaunchTargetGlyph));
+                OnPropertyChanged(nameof(LaunchTargetTooltip));
                 OnPropertyChanged(nameof(WebsiteLaunchUri));
             }
         }
@@ -124,7 +167,7 @@ public partial class KeyEntry : ObservableObject
     }
 
     [JsonIgnore]
-    public string FavoriteGlyph => IsFavorite ? "" : "";
+    public string FavoriteGlyph => IsFavorite ? "\uE735" : "\uE734";
 
     // Выбор для массовых операций
     private bool _isSelected;
@@ -135,7 +178,7 @@ public partial class KeyEntry : ObservableObject
         set => SetProperty(ref _isSelected, value);
     }
 
-    // Пользовательские атрибуты (PIN, Port, SSH User, etc.)
+    // Пользовательские атрибуты (PIN, Port, SSH User, CVV, SSID, etc.)
     public Dictionary<string, string> CustomFields { get; set; } = new();
 
     // История предыдущих паролей
@@ -305,14 +348,14 @@ public partial class KeyEntry : ObservableObject
         get
         {
             if (!ExpirationDate.HasValue)
-                return "#3A3D40"; // Нейтральный
+                return "#3A3D40";
             if (IsExpired)
-                return "#D13438"; // Критический красный
+                return "#D13438";
             if (IsCriticalExpiring)
-                return "#FF8C00"; // Тревожный оранжевый (<= 7 дней)
+                return "#FF8C00";
             if (IsExpiringSoon)
-                return "#FCE100"; // Предупреждающий желтый (<= 30 дней)
-            return "#107C41";     // Зеленый (активен)
+                return "#FCE100";
+            return "#107C41";
         }
     }
 
@@ -323,20 +366,29 @@ public partial class KeyEntry : ObservableObject
         KeyCategory.License => "Лицензия ПО",
         KeyCategory.ApiKey => "API Ключ / Токен",
         KeyCategory.Certificate => "Сертификат / SSH",
-        KeyCategory.Server => "Сервер / БД",
-        _ => "Другое"
+        KeyCategory.Server => "Сервер / БД / RDP",
+        KeyCategory.BankCard => "Банковская карта",
+        KeyCategory.Wifi => "Сеть Wi-Fi",
+        KeyCategory.Crypto => "Крипто / Seed-фраза",
+        _ => "Заметка / PIN"
     };
 
     [JsonIgnore]
     public string CategoryGlyph => Category switch
     {
-        KeyCategory.Account => "",     // Contact / Person
-        KeyCategory.License => "",     // Certificate / Ribbon
-        KeyCategory.ApiKey => "",      // Code / Key
-        KeyCategory.Certificate => "", // Lock / Shield
-        KeyCategory.Server => "",      // Cloud / Server
-        _ => ""                        // Tag / Other
+        KeyCategory.Account => "\uE77B",     // Contact / Person
+        KeyCategory.License => "\uE8A7",     // Certificate / Ribbon
+        KeyCategory.ApiKey => "\uE943",      // Code / Key
+        KeyCategory.Certificate => "\uE72E", // Lock / Shield
+        KeyCategory.Server => "\uEDA2",      // Cloud / Server
+        KeyCategory.BankCard => "\uE8C7",    // Payment Card
+        KeyCategory.Wifi => "\uE701",        // Wi-Fi
+        KeyCategory.Crypto => "\uE8AC",      // Safe / Crypto
+        _ => "\uE8D7"                        // Key / Other
     };
+
+    [JsonIgnore]
+    public string EffectiveGlyph => !string.IsNullOrWhiteSpace(CustomIconGlyph) ? CustomIconGlyph : CategoryGlyph;
 
     [JsonIgnore]
     public string MaskedSecret => string.IsNullOrEmpty(SecretValue)
@@ -344,17 +396,54 @@ public partial class KeyEntry : ObservableObject
         : new string('•', Math.Min(SecretValue.Length, 12));
 
     [JsonIgnore]
-    public bool HasWebsiteUrl => !string.IsNullOrWhiteSpace(TargetAppOrUrl) &&
-                                 (TargetAppOrUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-                                  TargetAppOrUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase));
+    public bool IsAppBinding
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(TargetAppOrUrl)) return false;
+            string t = TargetAppOrUrl.Trim();
+            return t.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ||
+                   t.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase) ||
+                   t.EndsWith(".rdp", StringComparison.OrdinalIgnoreCase) ||
+                   t.EndsWith(".bat", StringComparison.OrdinalIgnoreCase) ||
+                   t.EndsWith(".cmd", StringComparison.OrdinalIgnoreCase) ||
+                   (t.Length >= 3 && char.IsLetter(t[0]) && t[1] == ':' && (t[2] == '\\' || t[2] == '/')) ||
+                   t.StartsWith(@"\\", StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    [JsonIgnore]
+    public bool HasWebsiteUrl => !string.IsNullOrWhiteSpace(TargetAppOrUrl) && !IsAppBinding;
+
+    [JsonIgnore]
+    public bool HasLaunchTarget => !string.IsNullOrWhiteSpace(TargetAppOrUrl);
+
+    [JsonIgnore]
+    public Visibility HasLaunchTargetVisibility => HasLaunchTarget ? Visibility.Visible : Visibility.Collapsed;
+
+    [JsonIgnore]
+    public string LaunchTargetGlyph => IsAppBinding ? "\uE756" : "\uE774";
+
+    [JsonIgnore]
+    public string LaunchTargetTooltip => IsAppBinding
+        ? $"Запустить привязанную программу ({Path.GetFileName(TargetAppOrUrl)})"
+        : $"Открыть привязанный сайт / URI ({TargetAppOrUrl})";
 
     [JsonIgnore]
     public Uri? WebsiteLaunchUri
     {
         get
         {
-            if (HasWebsiteUrl && Uri.TryCreate(TargetAppOrUrl, UriKind.Absolute, out var uri))
+            if (string.IsNullOrWhiteSpace(TargetAppOrUrl) || IsAppBinding)
+                return null;
+
+            string raw = TargetAppOrUrl.Trim();
+            if (Uri.TryCreate(raw, UriKind.Absolute, out var uri))
                 return uri;
+
+            if (raw.Contains('.') && !raw.Contains(' ') && Uri.TryCreate("https://" + raw, UriKind.Absolute, out var httpsUri))
+                return httpsUri;
+
             return null;
         }
     }
@@ -394,6 +483,7 @@ public partial class KeyEntry : ObservableObject
             Id = Guid.NewGuid(),
             Title = $"{Title} (Копия)",
             Category = Category,
+            CustomIconGlyph = CustomIconGlyph,
             UsernameOrEmail = UsernameOrEmail,
             SecretValue = SecretValue,
             TargetAppOrUrl = TargetAppOrUrl,

@@ -3,6 +3,7 @@ using Microsoft.UI.Xaml.Media;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -52,12 +53,12 @@ public partial class MainViewModel : ObservableObject
     private double _updateProgress;
 
     [ObservableProperty]
-    private string _updateStatusText = "Проверить обновления";
+    private string _updateStatusText = $"Установлена актуальная версия ({UpdateService.CurrentVersionString})";
 
     [ObservableProperty]
     private bool _isAboutDialogVisible;
 
-    // Новые возможности версии 1.0.3
+    // Компактный / комфортный вид и фильтрация
     [ObservableProperty]
     private bool _isCompactView;
 
@@ -79,7 +80,6 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private bool _isHealthDashboardVisible;
 
-    // Новые возможности версии 1.0.3
     [ObservableProperty]
     private string _selectedSortOrder = "По приоритету срока";
 
@@ -122,13 +122,15 @@ public partial class MainViewModel : ObservableObject
         _lastActivityTime = DateTimeOffset.Now;
     }
 
-
     // Состояния хранилища
     [ObservableProperty]
     private bool _isVaultUninitialized;
 
     [ObservableProperty]
     private bool _isVaultLocked = true;
+
+    [ObservableProperty]
+    private bool _isVaultEmpty = true;
 
     [ObservableProperty]
     private string _masterPasswordInput = string.Empty;
@@ -195,7 +197,7 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private string _certificateStatus = "STORM CERTIFIED";
 
-    // Редактирование / Создание записи
+    // Редактирование / Создание записи (Максимально прокачанный диалог 1.0.4)
     [ObservableProperty]
     private bool _isEditDialogVisible;
 
@@ -210,6 +212,12 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     private KeyCategory _editCategory = KeyCategory.Account;
+
+    [ObservableProperty]
+    private string _editCustomIconGlyph = string.Empty;
+
+    [ObservableProperty]
+    private string _editPreviewGlyph = "\uE77B";
 
     [ObservableProperty]
     private string _editUsername = string.Empty;
@@ -238,9 +246,65 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private int _secretStrengthScore = 0;
 
-    // TOTP 2FA Authenticator
+    // Настраиваемый генератор паролей и ключей (с параметрами)
+    [ObservableProperty]
+    private int _genPasswordLength = 20;
+
+    [ObservableProperty]
+    private bool _genUseUpper = true;
+
+    [ObservableProperty]
+    private bool _genUseLower = true;
+
+    [ObservableProperty]
+    private bool _genUseDigits = true;
+
+    [ObservableProperty]
+    private bool _genUseSpecial = true;
+
+    [ObservableProperty]
+    private bool _genExcludeAmbiguous = true;
+
+    // TOTP 2FA Authenticator + Живая проверка прохождения 2FA в окне редактирования
     [ObservableProperty]
     private string _editTotpSecret = string.Empty;
+
+    [ObservableProperty]
+    private bool _hasValidEditTotp;
+
+    [ObservableProperty]
+    private string _editTotpLiveCode = "--- ---";
+
+    [ObservableProperty]
+    private string _editTotpCountdownText = "30 сек.";
+
+    [ObservableProperty]
+    private double _editTotpProgressRatio = 1.0;
+
+    // Палитра из 20 иконок для кастомного выбора пользователем
+    public List<IconOptionItem> AvailableIcons { get; } = new()
+    {
+        new() { Glyph = "\uE77B", Name = "Аккаунт / Профиль" },
+        new() { Glyph = "\uE774", Name = "Веб-сайт / Браузер" },
+        new() { Glyph = "\uE8D7", Name = "Ключ / Пароль" },
+        new() { Glyph = "\uE72E", Name = "Защита / 2FA Щит" },
+        new() { Glyph = "\uE8A7", Name = "Лицензия ПО / Сертификат" },
+        new() { Glyph = "\uE753", Name = "Облако / SaaS" },
+        new() { Glyph = "\uEDA2", Name = "Сервер / Дата-центр" },
+        new() { Glyph = "\uE943", Name = "API / Код разработчика" },
+        new() { Glyph = "\uE756", Name = "Терминал / SSH / Программа" },
+        new() { Glyph = "\uE7FC", Name = "Игра / Игровой лаунчер" },
+        new() { Glyph = "\uE8C7", Name = "Банковская карта / Финансы" },
+        new() { Glyph = "\uE701", Name = "Wi-Fi / Роутер" },
+        new() { Glyph = "\uE8AC", Name = "Крипто / Сейф" },
+        new() { Glyph = "\uE715", Name = "Почта / Email" },
+        new() { Glyph = "\uE719", Name = "Магазин / Покупки" },
+        new() { Glyph = "\uE8EA", Name = "Смартфон / Мобильное" },
+        new() { Glyph = "\uE821", Name = "Работа / Корпоративное" },
+        new() { Glyph = "\uE80F", Name = "Дом / Личное" },
+        new() { Glyph = "\uE735", Name = "VIP / Избранное" },
+        new() { Glyph = "\uE70B", Name = "Заметка / Документ" }
+    };
 
     // Windows Hello Биометрия
     [ObservableProperty]
@@ -346,11 +410,11 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _uiSettingsSave = "Сохранить";
     [ObservableProperty] private string _uiSettingsClose = "Закрыть";
     [ObservableProperty] private string _uiCheckUpdates = "Проверить";
-    [ObservableProperty] private string _uiInstallUpdate = "Установить";
+    [ObservableProperty] private string _uiInstallUpdate = "Обновить";
     [ObservableProperty] private string _uiPlatformCert = "STORM INTEGRATED PLATFORM";
     [ObservableProperty] private string _uiPlatformCertDesc = "Шифрование AES-256-GCM • Хеширование Argon2id • Экосистема STORM";
     [ObservableProperty] private string _uiUpdatesHeader = "Обновления STORM KEYS";
-    [ObservableProperty] private string _uiTooltipAdd = "Добавить новый ключ или пароль";
+    [ObservableProperty] private string _uiTooltipAdd = "Добавить новый ключ или пароль (Ctrl+N)";
     [ObservableProperty] private string _uiTooltipImport = "Импорт ключей и паролей";
     [ObservableProperty] private string _uiTooltipExport = "Экспорт хранилища";
     [ObservableProperty] private string _uiTooltipSettings = "Настройки хранилища и облака";
@@ -360,11 +424,11 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _uiTooltipCardDetails = "Стилизованная подсказка и детали";
     [ObservableProperty] private string _uiTooltipEdit = "Редактировать";
     [ObservableProperty] private string _uiTooltipDelete = "Удалить";
-    [ObservableProperty] private string _uiTooltipGenPassword = "Сгенерировать надежный пароль";
+    [ObservableProperty] private string _uiTooltipGenPassword = "Сгенерировать надежный пароль по выбранным параметрам";
     [ObservableProperty] private string _uiTooltipGenSoftwareKey = "Сгенерировать формат ключа ПО (XXXXX-XXXXX...)";
     [ObservableProperty] private string _uiAboutTitle = "О программе STORM KEYS";
     [ObservableProperty] private string _uiAboutPublisher = "Проверенный издатель: STORM TEAM";
-    [ObservableProperty] private string _uiAboutVersion = "Версия 1.0.3";
+    [ObservableProperty] private string _uiAboutVersion = $"Версия {UpdateService.CurrentVersionString}";
     [ObservableProperty] private string _uiAboutCert = "Сертификат: STORM INTEGRATED PLATFORM";
     [ObservableProperty] private string _uiAboutDesc = "Защищённое хранилище цифровых ключей, паролей и лицензий с шифрованием AES-256-GCM и деривацией Argon2id.";
     [ObservableProperty] private string _uiAboutClose = "Закрыть";
@@ -372,7 +436,7 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _uiWindowsHelloToggle = "Биометрия Windows Hello (отпечаток / лицо / PIN)";
     [ObservableProperty] private string _uiTotpLabel = "Код 2FA (TOTP)";
     [ObservableProperty] private string _uiTotpCopyTooltip = "Скопировать код 2FA";
-    [ObservableProperty] private string _uiTotpSecretLabel = "Секретный ключ 2FA (Base32)";
+    [ObservableProperty] private string _uiTotpSecretLabel = "Секретный ключ 2FA (Base32 или otpauth://)";
     [ObservableProperty] private string _uiTotpGenerate = "Сгенерировать ключ 2FA";
     [ObservableProperty] private string _uiAuditPasswords = "Проверить базу паролей на утечки";
 
@@ -444,6 +508,9 @@ public partial class MainViewModel : ObservableObject
         var savedFont = _vaultService.Settings.FontFamily ?? "Inter Variable";
         SelectedFont = AvailableFonts.FirstOrDefault(f => f.StartsWith(savedFont, StringComparison.OrdinalIgnoreCase)) ?? AvailableFonts[0];
 
+        IsUpdateAvailable = false;
+        UpdateStatusText = $"Установлена актуальная версия ({UpdateService.CurrentVersionString})";
+
         ApplyCurrentTheme();
         ApplyCurrentLanguage(LocalizationService.GetLanguage(SelectedLanguage).Code);
 
@@ -464,7 +531,7 @@ public partial class MainViewModel : ObservableObject
             catch { }
         });
 
-        // Запуск таймера обновления кодов TOTP 2FA
+        // Запуск таймера обновления кодов TOTP 2FA (включая живое превью в диалоге создания/редактирования)
         _totpTimer = new DispatcherTimer
         {
             Interval = TimeSpan.FromSeconds(1)
@@ -488,9 +555,9 @@ public partial class MainViewModel : ObservableObject
             try
             {
                 var update = await _updateService.CheckForUpdatesAsync(silent: true);
-                if (update != null)
+                _dispatcherQueue.TryEnqueue(() =>
                 {
-                    _dispatcherQueue.TryEnqueue(() =>
+                    if (update != null && UpdateService.IsNewerVersion(update.Version, UpdateService.CurrentVersion))
                     {
                         IsUpdateAvailable = true;
                         UpdateVersion = update.Version;
@@ -499,8 +566,13 @@ public partial class MainViewModel : ObservableObject
                         UpdateFileName = update.FileName;
                         UpdateStatusText = $"Доступно обновление: {update.Version}";
                         StatusMessage = $"Доступна новая версия STORM KEYS: {update.Version}";
-                    });
-                }
+                    }
+                    else
+                    {
+                        IsUpdateAvailable = false;
+                        UpdateStatusText = $"Установлена актуальная версия ({UpdateService.CurrentVersionString})";
+                    }
+                });
             }
             catch { }
         });
@@ -527,7 +599,6 @@ public partial class MainViewModel : ObservableObject
     partial void OnSearchTextChanged(string value) => RefreshFilteredList();
     partial void OnSelectedCategoryFilterChanged(string value) => RefreshFilteredList();
     partial void OnSelectedExpirationFilterChanged(string value) => RefreshFilteredList();
-
     partial void OnSelectedSortOrderChanged(string value) => RefreshFilteredList();
 
     partial void OnIsCompactViewChanged(bool value)
@@ -535,14 +606,60 @@ public partial class MainViewModel : ObservableObject
         CardPadding = value ? new Thickness(12, 6, 12, 6) : new Thickness(16, 12, 16, 12);
     }
 
+    partial void OnEditCategoryChanged(KeyCategory value)
+    {
+        UpdateEditPreviewGlyph();
+    }
+
+    partial void OnEditCustomIconGlyphChanged(string value)
+    {
+        UpdateEditPreviewGlyph();
+    }
+
+    private void UpdateEditPreviewGlyph()
+    {
+        if (!string.IsNullOrWhiteSpace(EditCustomIconGlyph))
+        {
+            EditPreviewGlyph = EditCustomIconGlyph;
+            return;
+        }
+
+        EditPreviewGlyph = EditCategory switch
+        {
+            KeyCategory.Account => "\uE77B",
+            KeyCategory.License => "\uE8A7",
+            KeyCategory.ApiKey => "\uE943",
+            KeyCategory.Certificate => "\uE72E",
+            KeyCategory.Server => "\uEDA2",
+            KeyCategory.BankCard => "\uE8C7",
+            KeyCategory.Wifi => "\uE701",
+            KeyCategory.Crypto => "\uE8AC",
+            _ => "\uE8D7"
+        };
+    }
+
     partial void OnEditTargetAppChanged(string value)
     {
         if (!IsNewEntry || string.IsNullOrWhiteSpace(value)) return;
         string v = value.Trim().ToLowerInvariant();
-        if (v.StartsWith("ssh://") || v.StartsWith("rdp://") || v.StartsWith("postgres://") || v.StartsWith("mysql://"))
+        if (v.StartsWith("ssh://") || v.StartsWith("rdp://") || v.StartsWith("postgres://") || v.StartsWith("mysql://") || v.EndsWith(".rdp"))
             EditCategory = KeyCategory.Server;
         else if (v.Contains("api.") || v.Contains("/api/") || v.Contains("token"))
             EditCategory = KeyCategory.ApiKey;
+
+        // Автоподстановка названия из домена или .exe, если название ещё пустое
+        if (string.IsNullOrWhiteSpace(EditTitle))
+        {
+            if (v.EndsWith(".exe") || v.EndsWith(".lnk") || v.EndsWith(".rdp"))
+            {
+                try { EditTitle = Path.GetFileNameWithoutExtension(value.Trim()); } catch { }
+            }
+            else if (Uri.TryCreate(value.Trim().StartsWith("http") ? value.Trim() : "https://" + value.Trim(), UriKind.Absolute, out var u) && !string.IsNullOrEmpty(u.Host))
+            {
+                string host = u.Host.StartsWith("www.") ? u.Host[4..] : u.Host;
+                EditTitle = host;
+            }
+        }
     }
 
     partial void OnEditSecretChanged(string value)
@@ -556,10 +673,61 @@ public partial class MainViewModel : ObservableObject
         SecretCrackTimeText = PasswordGenerator.EstimateCrackTime(value);
 
         // Умное автоопределение категории для лицензионных ключей XXXXX-XXXXX-...
-        if (IsNewEntry && !string.IsNullOrWhiteSpace(value) && value.Length >= 19 && value.Split('-').Length >= 4)
+        if (IsNewEntry && !string.IsNullOrWhiteSpace(value) && value.Length >= 19 && value.Split('-').Length >= 4 && EditCategory == KeyCategory.Account)
         {
             EditCategory = KeyCategory.License;
         }
+    }
+
+    partial void OnEditTotpSecretChanged(string value)
+    {
+        if (!string.IsNullOrWhiteSpace(value) && value.Trim().StartsWith("otpauth://", StringComparison.OrdinalIgnoreCase))
+        {
+            if (_totpService.TryParseOtpAuthInput(value, out string cleanSecret, out string? issuer, out string? account))
+            {
+                if (string.IsNullOrWhiteSpace(EditTitle) && !string.IsNullOrWhiteSpace(issuer))
+                    EditTitle = issuer;
+                if (string.IsNullOrWhiteSpace(EditUsername) && !string.IsNullOrWhiteSpace(account))
+                    EditUsername = account;
+
+                EditTotpSecret = cleanSecret;
+                StatusMessage = "Ссылка otpauth:// распознана: секретный ключ 2FA и аккаунт подставлены!";
+                return;
+            }
+        }
+
+        UpdateEditDialogTotpPreview();
+    }
+
+    private void UpdateEditDialogTotpPreview()
+    {
+        if (string.IsNullOrWhiteSpace(EditTotpSecret))
+        {
+            HasValidEditTotp = false;
+            EditTotpLiveCode = "--- ---";
+            EditTotpCountdownText = "—";
+            EditTotpProgressRatio = 0;
+            return;
+        }
+
+        if (_totpService.TryParseOtpAuthInput(EditTotpSecret, out string cleanSecret, out _, out _))
+        {
+            string code = _totpService.GenerateCode(cleanSecret);
+            if (!string.IsNullOrEmpty(code))
+            {
+                int sec = _totpService.GetSecondsRemaining();
+                HasValidEditTotp = true;
+                EditTotpLiveCode = _totpService.FormatCode(code);
+                EditTotpCountdownText = $"Обновление через {sec} сек.";
+                EditTotpProgressRatio = (double)sec / 30.0;
+                return;
+            }
+        }
+
+        HasValidEditTotp = false;
+        EditTotpLiveCode = "Неверный Base32";
+        EditTotpCountdownText = "Проверьте ключ";
+        EditTotpProgressRatio = 0;
     }
 
     partial void OnEditHasExpirationChanged(bool value)
@@ -576,6 +744,11 @@ public partial class MainViewModel : ObservableObject
 
     public void UpdateTotpCodes()
     {
+        if (IsEditDialogVisible && !string.IsNullOrWhiteSpace(EditTotpSecret))
+        {
+            UpdateEditDialogTotpPreview();
+        }
+
         if (IsVaultLocked || _vaultService.CurrentContainer == null) return;
 
         int secRemaining = _totpService.GetSecondsRemaining();
@@ -757,6 +930,7 @@ public partial class MainViewModel : ObservableObject
         var allEntries = _vaultService.CurrentContainer.Entries;
 
         TotalEntriesCount = allEntries.Count;
+        IsVaultEmpty = TotalEntriesCount == 0;
         ExpiringSoonCount = allEntries.Count(e => e.IsExpiringSoon);
         ExpiredCount = allEntries.Count(e => e.IsExpired);
         ActiveCount = allEntries.Count(e => !e.IsExpired);
@@ -821,6 +995,9 @@ public partial class MainViewModel : ObservableObject
                 "License" => query.Where(e => e.Category == KeyCategory.License),
                 "ApiKey" => query.Where(e => e.Category == KeyCategory.ApiKey),
                 "Server" => query.Where(e => e.Category == KeyCategory.Server),
+                "BankCard" => query.Where(e => e.Category == KeyCategory.BankCard),
+                "Wifi" => query.Where(e => e.Category == KeyCategory.Wifi),
+                "Crypto" => query.Where(e => e.Category == KeyCategory.Crypto),
                 _ => query
             };
         }
@@ -835,6 +1012,9 @@ public partial class MainViewModel : ObservableObject
                 "API Ключи" => query.Where(e => e.Category == KeyCategory.ApiKey),
                 "Сертификаты / SSH" => query.Where(e => e.Category == KeyCategory.Certificate),
                 "Серверы" => query.Where(e => e.Category == KeyCategory.Server),
+                "Банковские карты" => query.Where(e => e.Category == KeyCategory.BankCard),
+                "Сети Wi-Fi" => query.Where(e => e.Category == KeyCategory.Wifi),
+                "Крипто / Seed" => query.Where(e => e.Category == KeyCategory.Crypto),
                 "Другое" => query.Where(e => e.Category == KeyCategory.Other),
                 _ => query
             };
@@ -878,9 +1058,10 @@ public partial class MainViewModel : ObservableObject
     public void OpenAddDialog()
     {
         IsNewEntry = true;
-        EditDialogHeader = "Новая запись ключа / пароля";
+        EditDialogHeader = "Новая запись (все форматы, иконки, генератор, 2FA)";
         EditTitle = string.Empty;
         EditCategory = KeyCategory.Account;
+        EditCustomIconGlyph = string.Empty;
         EditUsername = string.Empty;
         EditSecret = string.Empty;
         EditTargetApp = string.Empty;
@@ -892,7 +1073,123 @@ public partial class MainViewModel : ObservableObject
         EditCustomFieldsText = string.Empty;
         HasPasswordHistory = false;
         EditPasswordHistoryText = string.Empty;
+        UpdateEditPreviewGlyph();
+        UpdateEditDialogTotpPreview();
         IsEditDialogVisible = true;
+    }
+
+    [RelayCommand]
+    public void OpenAddDialogWithTemplate(string templateKey)
+    {
+        OpenAddDialog();
+        ApplyEntryTemplate(templateKey);
+    }
+
+    [RelayCommand]
+    public void ApplyEntryTemplate(string templateKey)
+    {
+        switch (templateKey)
+        {
+            case "Account":
+                EditCategory = KeyCategory.Account;
+                EditCustomIconGlyph = "\uE77B";
+                if (string.IsNullOrWhiteSpace(EditTagsText)) EditTagsText = "аккаунт, вход";
+                break;
+            case "License":
+                EditCategory = KeyCategory.License;
+                EditCustomIconGlyph = "\uE8A7";
+                if (string.IsNullOrWhiteSpace(EditSecret)) EditSecret = PasswordGenerator.GenerateLicenseKey();
+                if (string.IsNullOrWhiteSpace(EditTagsText)) EditTagsText = "лицензия, софт";
+                if (string.IsNullOrWhiteSpace(EditCustomFieldsText)) EditCustomFieldsText = "Платформа: Windows / Steam\nКоличество ПК: 1";
+                break;
+            case "ApiKey":
+                EditCategory = KeyCategory.ApiKey;
+                EditCustomIconGlyph = "\uE943";
+                if (string.IsNullOrWhiteSpace(EditTagsText)) EditTagsText = "api, token, dev";
+                if (string.IsNullOrWhiteSpace(EditCustomFieldsText)) EditCustomFieldsText = "Тип: Bearer Token\nОкружение: Production";
+                break;
+            case "Certificate":
+                EditCategory = KeyCategory.Certificate;
+                EditCustomIconGlyph = "\uE72E";
+                if (string.IsNullOrWhiteSpace(EditTagsText)) EditTagsText = "ssh, ssl, cert";
+                if (string.IsNullOrWhiteSpace(EditCustomFieldsText)) EditCustomFieldsText = "Алгоритм: Ed25519 / RSA-4096\nОтпечаток: SHA256";
+                break;
+            case "Server":
+                EditCategory = KeyCategory.Server;
+                EditCustomIconGlyph = "\uEDA2";
+                if (string.IsNullOrWhiteSpace(EditTagsText)) EditTagsText = "сервер, rdp, ssh";
+                if (string.IsNullOrWhiteSpace(EditCustomFieldsText)) EditCustomFieldsText = "IP / Хост: 192.168.1.10\nПорт: 22\nПротокол: SSH / RDP";
+                break;
+            case "BankCard":
+                EditCategory = KeyCategory.BankCard;
+                EditCustomIconGlyph = "\uE8C7";
+                if (string.IsNullOrWhiteSpace(EditTagsText)) EditTagsText = "карта, финансы";
+                if (string.IsNullOrWhiteSpace(EditCustomFieldsText)) EditCustomFieldsText = "Срок (ММ/ГГ): 12/28\nCVV / CVC: 000\nPIN-код: 0000\nБанк: ";
+                break;
+            case "Wifi":
+                EditCategory = KeyCategory.Wifi;
+                EditCustomIconGlyph = "\uE701";
+                if (string.IsNullOrWhiteSpace(EditTagsText)) EditTagsText = "wifi, сеть";
+                if (string.IsNullOrWhiteSpace(EditCustomFieldsText)) EditCustomFieldsText = "SSID (Имя сети): \nЗащита: WPA2/WPA3\nIP роутера: 192.168.1.1";
+                break;
+            case "Crypto":
+                EditCategory = KeyCategory.Crypto;
+                EditCustomIconGlyph = "\uE8AC";
+                if (string.IsNullOrWhiteSpace(EditTagsText)) EditTagsText = "крипто, seed, кошелек";
+                if (string.IsNullOrWhiteSpace(EditCustomFieldsText)) EditCustomFieldsText = "Сеть: BTC / ETH / TON / USDT\nПубличный адрес: \nSeed-фраза (12/24 слова): ";
+                break;
+            case "Other":
+                EditCategory = KeyCategory.Other;
+                EditCustomIconGlyph = "\uE70B";
+                if (string.IsNullOrWhiteSpace(EditTagsText)) EditTagsText = "заметка, pin";
+                break;
+        }
+        UpdateEditPreviewGlyph();
+    }
+
+    [RelayCommand]
+    public void SelectCustomIcon(string glyph)
+    {
+        if (!string.IsNullOrWhiteSpace(glyph))
+        {
+            EditCustomIconGlyph = glyph;
+            UpdateEditPreviewGlyph();
+        }
+    }
+
+    [RelayCommand]
+    public async Task FillDialogFromClipboardAsync()
+    {
+        try
+        {
+            var dataPackageView = Windows.ApplicationModel.DataTransfer.Clipboard.GetContent();
+            if (dataPackageView.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Text))
+            {
+                string text = await dataPackageView.GetTextAsync();
+                var res = _importExportService.ImportFromClipboardText(text);
+                if (res.ImportedEntries.Count > 0)
+                {
+                    var item = res.ImportedEntries[0];
+                    if (!string.IsNullOrWhiteSpace(item.Title)) EditTitle = item.Title;
+                    EditCategory = item.Category;
+                    if (!string.IsNullOrWhiteSpace(item.UsernameOrEmail)) EditUsername = item.UsernameOrEmail;
+                    if (!string.IsNullOrWhiteSpace(item.SecretValue)) EditSecret = item.SecretValue;
+                    if (!string.IsNullOrWhiteSpace(item.TotpSecret)) EditTotpSecret = item.TotpSecret;
+                    if (!string.IsNullOrWhiteSpace(item.TargetAppOrUrl)) EditTargetApp = item.TargetAppOrUrl;
+                    if (!string.IsNullOrWhiteSpace(item.Notes)) EditNotes = item.Notes;
+                    StatusMessage = $"Поля формы автоматически заполнены из буфера ({res.FormatDetected})!";
+                }
+                else if (!string.IsNullOrWhiteSpace(text))
+                {
+                    EditSecret = text.Trim();
+                    StatusMessage = "Текст из буфера вставлен в поле пароля/ключа.";
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Ошибка чтения буфера: {ex.Message}";
+        }
     }
 
     [RelayCommand]
@@ -904,6 +1201,7 @@ public partial class MainViewModel : ObservableObject
         EditDialogHeader = $"Редактирование: {entry.Title}";
         EditTitle = entry.Title;
         EditCategory = entry.Category;
+        EditCustomIconGlyph = entry.CustomIconGlyph ?? string.Empty;
         EditUsername = entry.UsernameOrEmail;
         EditSecret = entry.SecretValue;
         EditTargetApp = entry.TargetAppOrUrl;
@@ -919,9 +1217,10 @@ public partial class MainViewModel : ObservableObject
         EditPasswordHistoryText = HasPasswordHistory
             ? $"В истории {entry.PasswordHistory!.Count} пред. паролей (посл. от {entry.PasswordHistory[0].ChangedAt:dd.MM.yyyy HH:mm})"
             : string.Empty;
+        UpdateEditPreviewGlyph();
+        UpdateEditDialogTotpPreview();
         IsEditDialogVisible = true;
     }
-
 
     [RelayCommand]
     public async Task ToggleFavoriteAsync(KeyEntry? entry)
@@ -954,11 +1253,94 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     public async Task LaunchUrlAsync(KeyEntry? entry)
     {
-        if (entry?.WebsiteLaunchUri != null)
+        if (entry == null || string.IsNullOrWhiteSpace(entry.TargetAppOrUrl))
+            return;
+
+        RecordUserActivity();
+        string target = entry.TargetAppOrUrl.Trim();
+
+        try
         {
-            RecordUserActivity();
-            await Windows.System.Launcher.LaunchUriAsync(entry.WebsiteLaunchUri);
+            // 1. Запуск привязанной локальной программы (.exe, .lnk, .rdp, .bat)
+            if (entry.IsAppBinding)
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = target,
+                    UseShellExecute = true
+                });
+                StatusMessage = $"Запущена привязанная программа: {Path.GetFileName(target)}";
+                return;
+            }
+
+            // 2. Открытие сайта или URI протокола (https://, steam://, ssh://, rdp://)
+            if (entry.WebsiteLaunchUri != null)
+            {
+                await Windows.System.Launcher.LaunchUriAsync(entry.WebsiteLaunchUri);
+                StatusMessage = $"Открыт сайт / ресурс: {entry.WebsiteLaunchUri}";
+                return;
+            }
+
+            // 3. Попытка запуска через системный Shell
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = target,
+                UseShellExecute = true
+            });
         }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Не удалось запустить «{target}»: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    public async Task AutoTypeEntryAsync(KeyEntry? entry)
+    {
+        if (entry == null) return;
+        RecordUserActivity();
+
+        // Если у записи настроен 2FA, сразу копируем текущий 6-значный код 2FA в буфер обмена для мгновенного прохождения 2FA
+        if (entry.HasTotp && !string.IsNullOrWhiteSpace(entry.CurrentTotpCode) && _dispatcherQueue != null)
+        {
+            int timeout = _vaultService.Settings.ClearClipboardAfterSeconds ? _vaultService.Settings.ClipboardClearTimeout : 0;
+            ClipboardHelper.CopyToClipboard(entry.CurrentTotpCode.Replace(" ", ""), _dispatcherQueue, timeout);
+        }
+
+        IntPtr hwnd = MainWindow.Instance != null ? WinRT.Interop.WindowNative.GetWindowHandle(MainWindow.Instance) : IntPtr.Zero;
+        bool ok = await AutoTypeHelper.AutoTypeCredentialsAsync(hwnd, entry.UsernameOrEmail, entry.SecretValue, pressEnter: true);
+        if (ok)
+        {
+            StatusMessage = entry.HasTotp
+                ? $"Авто-ввод «{entry.Title}» выполнен! Код 2FA ({entry.CurrentTotpCode}) уже в буфере обмена (Ctrl+V)."
+                : $"Быстрая авто-вставка «{entry.Title}» в активное окно выполнена!";
+        }
+    }
+
+    [RelayCommand]
+    public async Task AutoTypeTotpAsync(KeyEntry? entry)
+    {
+        if (entry == null || !entry.HasTotp) return;
+        RecordUserActivity();
+        string code = string.IsNullOrWhiteSpace(entry.CurrentTotpCode)
+            ? _totpService.GenerateCode(entry.TotpSecret)
+            : entry.CurrentTotpCode.Replace(" ", "");
+
+        if (string.IsNullOrEmpty(code)) return;
+
+        IntPtr hwnd = MainWindow.Instance != null ? WinRT.Interop.WindowNative.GetWindowHandle(MainWindow.Instance) : IntPtr.Zero;
+        await AutoTypeHelper.AutoTypeTextAsync(hwnd, code, pressEnter: true);
+        StatusMessage = $"Код 2FA ({code}) автоматически введён в активное окно!";
+    }
+
+    [RelayCommand]
+    public void CopyEditTotpCode()
+    {
+        if (!HasValidEditTotp || _dispatcherQueue == null) return;
+        string rawCode = EditTotpLiveCode.Replace(" ", "");
+        int timeout = _vaultService.Settings.ClearClipboardAfterSeconds ? _vaultService.Settings.ClipboardClearTimeout : 0;
+        ClipboardHelper.CopyToClipboard(rawCode, _dispatcherQueue, timeout);
+        StatusMessage = $"Проверочный код 2FA «{EditTotpLiveCode}» скопирован для подтверждения на сайте!";
     }
 
     [RelayCommand]
@@ -979,13 +1361,22 @@ public partial class MainViewModel : ObservableObject
 
         if (_vaultService.CurrentContainer == null) return;
 
-        string cleanTotp = string.IsNullOrWhiteSpace(EditTotpSecret) ? string.Empty : EditTotpSecret.Trim().Replace(" ", "").ToUpperInvariant();
+        string cleanTotp = string.Empty;
+        if (!string.IsNullOrWhiteSpace(EditTotpSecret))
+        {
+            if (_totpService.TryParseOtpAuthInput(EditTotpSecret, out string parsedSecret, out _, out _))
+                cleanTotp = parsedSecret;
+            else
+                cleanTotp = EditTotpSecret.Trim().Replace(" ", "").Replace("-", "").ToUpperInvariant();
+        }
+
         if (IsNewEntry)
         {
             var newEntry = new KeyEntry
             {
                 Title = EditTitle.Trim(),
                 Category = EditCategory,
+                CustomIconGlyph = EditCustomIconGlyph,
                 UsernameOrEmail = EditUsername.Trim(),
                 SecretValue = EditSecret,
                 TargetAppOrUrl = EditTargetApp.Trim(),
@@ -1010,15 +1401,16 @@ public partial class MainViewModel : ObservableObject
         {
             SelectedEntry.Title = EditTitle.Trim();
             SelectedEntry.Category = EditCategory;
+            SelectedEntry.CustomIconGlyph = EditCustomIconGlyph;
             SelectedEntry.UsernameOrEmail = EditUsername.Trim();
-            
+
             if (!IsNewEntry && SelectedEntry.SecretValue != EditSecret && !string.IsNullOrEmpty(SelectedEntry.SecretValue))
             {
                 SelectedEntry.PasswordHistory ??= new();
-                SelectedEntry.PasswordHistory.Insert(0, new PasswordHistoryItem 
-                { 
-                    Password = SelectedEntry.SecretValue, 
-                    ChangedAt = DateTimeOffset.Now 
+                SelectedEntry.PasswordHistory.Insert(0, new PasswordHistoryItem
+                {
+                    Password = SelectedEntry.SecretValue,
+                    ChangedAt = DateTimeOffset.Now
                 });
                 if (SelectedEntry.PasswordHistory.Count > 5)
                     SelectedEntry.PasswordHistory.RemoveAt(SelectedEntry.PasswordHistory.Count - 1);
@@ -1042,7 +1434,6 @@ public partial class MainViewModel : ObservableObject
                 SelectedEntry.CurrentTotpCode = string.Empty;
             }
             SelectedEntry.ModifiedAt = DateTimeOffset.UtcNow;
-            // Сброс флагов уведомлений, если дата изменилась
             SelectedEntry.Notified30Days = false;
             SelectedEntry.Notified7Days = false;
             SelectedEntry.Notified1Day = false;
@@ -1149,7 +1540,7 @@ public partial class MainViewModel : ObservableObject
         if (!string.IsNullOrWhiteSpace(entry.UsernameOrEmail)) lines.Add($"Логин: {entry.UsernameOrEmail}");
         if (!string.IsNullOrWhiteSpace(entry.SecretValue)) lines.Add($"Пароль/Ключ: {entry.SecretValue}");
         if (entry.HasTotp && !string.IsNullOrWhiteSpace(entry.CurrentTotpCode)) lines.Add($"Код 2FA: {entry.CurrentTotpCode}");
-        if (!string.IsNullOrWhiteSpace(entry.TargetAppOrUrl)) lines.Add($"URL: {entry.TargetAppOrUrl}");
+        if (!string.IsNullOrWhiteSpace(entry.TargetAppOrUrl)) lines.Add($"URL/Программа: {entry.TargetAppOrUrl}");
         int timeout = _vaultService.Settings.ClearClipboardAfterSeconds ? _vaultService.Settings.ClipboardClearTimeout : 0;
         ClipboardHelper.CopyToClipboard(string.Join(Environment.NewLine, lines), _dispatcherQueue, timeout);
         StatusMessage = $"Полная сводка «{entry.Title}» скопирована в буфер!";
@@ -1159,6 +1550,23 @@ public partial class MainViewModel : ObservableObject
     public void GeneratePassphrase()
     {
         EditSecret = PasswordGenerator.GeneratePassphrase(4, "-", true);
+    }
+
+    [RelayCommand]
+    public void GeneratePinCode()
+    {
+        int pinLen = Math.Clamp(GenPasswordLength <= 12 ? GenPasswordLength : 6, 4, 12);
+        EditSecret = PasswordGenerator.GeneratePin(pinLen);
+    }
+
+    [RelayCommand]
+    public void SetGeneratorLengthPreset(string lenStr)
+    {
+        if (int.TryParse(lenStr, out int len))
+        {
+            GenPasswordLength = Math.Clamp(len, 6, 64);
+            GeneratePassword();
+        }
     }
 
     [RelayCommand]
@@ -1229,8 +1637,8 @@ public partial class MainViewModel : ObservableObject
         if (entry == null || string.IsNullOrEmpty(entry.SecretValue) || _dispatcherQueue == null) return;
         int timeout = _vaultService.Settings.ClearClipboardAfterSeconds ? _vaultService.Settings.ClipboardClearTimeout : 0;
         ClipboardHelper.CopyToClipboard(entry.SecretValue, _dispatcherQueue, timeout);
-        StatusMessage = timeout > 0 
-            ? $"Пароль/ключ скопирован! Буфер очистится через {timeout} сек." 
+        StatusMessage = timeout > 0
+            ? $"Пароль/ключ скопирован! Буфер очистится через {timeout} сек."
             : "Пароль/ключ скопирован в буфер.";
     }
 
@@ -1349,7 +1757,13 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     public void GeneratePassword()
     {
-        EditSecret = PasswordGenerator.Generate(20);
+        EditSecret = PasswordGenerator.Generate(
+            GenPasswordLength,
+            GenUseUpper,
+            GenUseLower,
+            GenUseDigits,
+            GenUseSpecial,
+            GenExcludeAmbiguous);
     }
 
     [RelayCommand]
@@ -1416,6 +1830,11 @@ public partial class MainViewModel : ObservableObject
 
         var savedFont = _vaultService.Settings.FontFamily ?? "Inter Variable";
         SelectedFont = AvailableFonts.FirstOrDefault(f => f.StartsWith(savedFont, StringComparison.OrdinalIgnoreCase)) ?? AvailableFonts[0];
+
+        if (!IsUpdateAvailable)
+        {
+            UpdateStatusText = $"Установлена актуальная версия ({UpdateService.CurrentVersionString})";
+        }
 
         ApplyCurrentTheme();
         ApplyCurrentLanguage(LocalizationService.GetLanguage(SelectedLanguage).Code);
@@ -1490,6 +1909,77 @@ public partial class MainViewModel : ObservableObject
             CurrentFontFamily = new FontFamily(fontDef.FontFamily);
 
             ThemeService.ApplyToResources(themeDef.Key, accentDef.Key, fontDef.Key, MainWindow.Instance?.Content as FrameworkElement);
+            SyncTrayMenuStyle();
+        }
+        catch { }
+    }
+
+    private void SyncTrayMenuStyle()
+    {
+        try
+        {
+            var themeDef = ThemeService.GetTheme(SelectedTheme);
+            var accentDef = ThemeService.GetAccent(SelectedAccent);
+            var langDef = LocalizationService.GetLanguage(SelectedLanguage);
+
+            string hoverHex = themeDef.Key.Equals("MIDNIGHT", StringComparison.OrdinalIgnoreCase)
+                ? "#2E2652"
+                : themeDef.CardHex;
+
+            string restoreLabel = langDef.Code switch
+            {
+                "en" => "Restore STORM KEYS",
+                "de" => "STORM KEYS wiederherstellen",
+                "fr" => "Restaurer STORM KEYS",
+                "es" => "Restaurar STORM KEYS",
+                "it" => "Ripristina STORM KEYS",
+                "pt" => "Restaurar STORM KEYS",
+                "zh" => "打开 STORM KEYS",
+                "ja" => "STORM KEYS を開く",
+                "ko" => "STORM KEYS 열기",
+                "hi" => "STORM KEYS खोलें",
+                _ => "Развернуть STORM KEYS"
+            };
+
+            string aboutLabel = langDef.Code switch
+            {
+                "en" => "About",
+                "de" => "Über das Programm",
+                "fr" => "À propos",
+                "es" => "Acerca de",
+                "it" => "Informazioni",
+                "pt" => "Sobre",
+                "zh" => "关于程序",
+                "ja" => "バージョン情報",
+                "ko" => "프로그램 정보",
+                "hi" => "प्रोग्राम के बारे में",
+                _ => "О программе"
+            };
+
+            string exitLabel = langDef.Code switch
+            {
+                "en" => "Exit",
+                "de" => "Beenden",
+                "fr" => "Quitter",
+                "es" => "Salir",
+                "it" => "Esci",
+                "pt" => "Sair",
+                "zh" => "退出",
+                "ja" => "終了",
+                "ko" => "종료",
+                "hi" => "बाहर निकलें",
+                _ => "Выход"
+            };
+
+            MainWindow.Instance?.TrayService?.ApplyTheme(
+                themeDef.HeaderHex,
+                hoverHex,
+                accentDef.Hex,
+                themeDef.TextPrimaryHex,
+                themeDef.CardStrokeHex,
+                restoreLabel,
+                aboutLabel,
+                exitLabel);
         }
         catch { }
     }
@@ -1552,10 +2042,11 @@ public partial class MainViewModel : ObservableObject
             UiTotpSecretLabel = LocalizationService.GetString("TotpSecretLabel", langCode);
             UiTotpGenerate = LocalizationService.GetString("TotpGenerate", langCode);
             UiAuditPasswords = LocalizationService.GetString("PwnedAuditButton", langCode);
+
+            SyncTrayMenuStyle();
         }
         catch { }
     }
-
 
     [RelayCommand]
     public async Task ImportFromClipboardAsync()
@@ -1572,11 +2063,15 @@ public partial class MainViewModel : ObservableObject
                     _vaultService.CurrentContainer.Entries.AddRange(res.ImportedEntries);
                     await _vaultService.SaveVaultAsync();
                     RefreshFilteredList();
-                    StatusMessage = $"Импортировано {res.ImportedCount} зап. из буфера обмена!";
+                    StatusMessage = $"Импортировано {res.ImportedCount} зап. из буфера обмена ({res.FormatDetected})!";
                 }
                 else
                 {
-                    StatusMessage = "В буфере обмена не обнаружено распознаваемых учетных данных или ключей.";
+                    // Если в буфере произвольный текст — открываем окно добавления с подставленными данными
+                    OpenAddDialog();
+                    if (!string.IsNullOrWhiteSpace(text))
+                        EditNotes = text.Trim();
+                    StatusMessage = "Открыта форма добавления новой записи.";
                 }
             }
         }
@@ -1589,7 +2084,7 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     public void OpenImportDialog()
     {
-        ImportSummaryText = "Выберите CSV или JSON файл экспорта из браузера (Chrome, Edge, Firefox) или менеджера паролей.";
+        ImportSummaryText = "Выберите CSV, JSON, .env или .txt файл экспорта из браузера (Chrome, Edge, Firefox) или менеджера паролей.";
         IsImportDialogVisible = true;
     }
 
@@ -1614,7 +2109,7 @@ public partial class MainViewModel : ObservableObject
                 await _vaultService.SaveVaultAsync();
                 RefreshFilteredList();
                 ImportSummaryText = $"Успешно! Формат: {res.FormatDetected}. Добавлено: {res.ImportedCount}, пропущено: {res.SkippedCount}.";
-                StatusMessage = $"Импортировано {res.ImportedCount} записей.";
+                StatusMessage = $"Импортировано {res.ImportedCount} записей ({res.FormatDetected}).";
             }
             else
             {
@@ -1640,7 +2135,7 @@ public partial class MainViewModel : ObservableObject
         try
         {
             var update = await _updateService.CheckForUpdatesAsync(silent: false);
-            if (update != null)
+            if (update != null && UpdateService.IsNewerVersion(update.Version, UpdateService.CurrentVersion))
             {
                 IsUpdateAvailable = true;
                 UpdateVersion = update.Version;
@@ -1653,12 +2148,14 @@ public partial class MainViewModel : ObservableObject
             else
             {
                 IsUpdateAvailable = false;
-                UpdateStatusText = "У вас установлена актуальная версия";
-                StatusMessage = "У вас установлена самая актуальная версия STORM KEYS.";
+                UpdateVersion = string.Empty;
+                UpdateStatusText = $"У вас установлена актуальная версия ({UpdateService.CurrentVersionString})";
+                StatusMessage = $"У вас установлена самая актуальная версия STORM KEYS ({UpdateService.CurrentVersionString}).";
             }
         }
         catch
         {
+            IsUpdateAvailable = false;
             UpdateStatusText = "Ошибка подключения к серверу обновлений";
             StatusMessage = "Не удалось проверить обновления. Проверьте интернет-соединение.";
         }

@@ -41,6 +41,11 @@ public static class Program
         await RunTest("Хранилище 1.0.3: Смена мастер-пароля и перешифрование AES-256-GCM", Test_Vault_Change_MasterPassword);
         await RunTest("Экспорт 1.0.3: Генерация Аварийного листа восстановления (.txt)", Test_Emergency_Recovery_Kit);
         await RunTest("ViewModel 1.0.3: Умный поиск, Чипы (Слабые/Дубли), Сортировка и Undo", Test_ViewModel_Search_Sort_Chips_Undo);
+        await RunTest("Обновления 1.0.4: Защита от ложного самообновления (IsNewerVersion)", Test_UpdateService_NoSelfUpdate_104);
+        await RunTest("TOTP 2FA 1.0.4: Разбор otpauth:// URI и ручных Base32 ключей", Test_Totp_OtpAuthUri_Parsing_104);
+        await RunTest("Генератор 1.0.4: Исключение похожих символов (0/O/1/l) и PIN-коды", Test_Generator_Configurable_ExcludeAmbiguous_Pin_104);
+        await RunTest("Модель 1.0.4: Новые форматы (Карты/Wi-Fi/Крипто), Иконки и .EXE привязка", Test_ManualEntry_Categories_CustomIcons_AppBinding_104);
+        await RunTest("Трей 1.0.4: Конвертация цветов темы в GDI COLORREF (BGR)", Test_TrayMenu_DynamicTheme_ColorRef_104);
 
         Console.WriteLine("-------------------------------------------------");
         Console.WriteLine($"РЕЗУЛЬТАТ: Успешно: {_passed} | Ошибок: {_failed}");
@@ -618,6 +623,92 @@ public static class Program
                 System.Linq.Enumerable.OrderByDescending(allEntries, e => e.IsFavorite),
                 e => e.EntropyBits));
         AssertEqual("Gamma Cloud", sortedByStrength[0].Title, "Избранная запись всегда должна быть первой при любой сортировке");
+
+        return Task.CompletedTask;
+    }
+
+    private static Task Test_UpdateService_NoSelfUpdate_104()
+    {
+        var v104_4 = new Version(1, 0, 4, 0);
+        var v104_3 = new Version(1, 0, 4);
+
+        AssertEqual(new Version(1, 0, 4), UpdateService.NormalizeVersion(v104_4), "4-компонентная версия 1.0.4.0 должна нормализоваться в 1.0.4");
+        AssertTrue(!UpdateService.IsNewerVersion("1.0.4", v104_4), "Версия 1.0.4 НЕ должна считаться новее установленной 1.0.4.0");
+        AssertTrue(!UpdateService.IsNewerVersion("v1.0.4", v104_3), "Тег v1.0.4 НЕ должен предлагать самообновление поверх 1.0.4");
+        AssertTrue(!UpdateService.IsNewerVersion("STORM KEYS 1.0.3", v104_3), "Старая версия 1.0.3 НЕ должна предлагаться поверх 1.0.4");
+        AssertTrue(UpdateService.IsNewerVersion("1.0.5", v104_4), "Версия 1.0.5 должна определяться как новая");
+
+        return Task.CompletedTask;
+    }
+
+    private static Task Test_Totp_OtpAuthUri_Parsing_104()
+    {
+        var totp = new TotpService();
+        string uri = "otpauth://totp/GitHub:admin%40storm.dev?secret=JBSWY3DPEHPK3PXP&issuer=GitHub&digits=6&period=30";
+
+        bool okUri = totp.TryParseOtpAuthInput(uri, out string cleanSecret, out string? issuer, out string? account);
+        AssertTrue(okUri, "otpauth:// URI должен успешно распознаваться");
+        AssertEqual("JBSWY3DPEHPK3PXP", cleanSecret, "Извлечённый Base32 секрет должен совпадать");
+        AssertEqual("GitHub", issuer, "Извлечённый издатель (issuer) должен быть GitHub");
+        AssertEqual("admin@storm.dev", account, "Извлечённый аккаунт должен быть admin@storm.dev");
+
+        bool okRaw = totp.TryParseOtpAuthInput("jbsw y3dp-ehpk 3pxp", out string rawClean, out _, out _);
+        AssertTrue(okRaw, "Сырой Base32 ключ с пробелами и дефисами должен распознаваться");
+        AssertEqual("JBSWY3DPEHPK3PXP", rawClean, "Очищенный Base32 ключ должен быть в верхнем регистре без пробелов");
+
+        string code = totp.GenerateCode(rawClean);
+        AssertEqual(6, code.Length, "Сгенерированный код 2FA для проверки должен состоять из 6 цифр");
+
+        return Task.CompletedTask;
+    }
+
+    private static Task Test_Generator_Configurable_ExcludeAmbiguous_Pin_104()
+    {
+        string noAmbiguous = PasswordGenerator.Generate(64, useUpper: true, useLower: true, useDigits: true, useSpecial: false, excludeAmbiguous: true);
+        AssertEqual(64, noAmbiguous.Length, "Длина пароля должна быть 64 символа");
+        foreach (char c in "0O1lI|")
+        {
+            AssertTrue(!noAmbiguous.Contains(c), $"Пароль с excludeAmbiguous не должен содержать символ '{c}'");
+        }
+
+        string pin = PasswordGenerator.GeneratePin(6);
+        AssertEqual(6, pin.Length, "Длина PIN-кода должна быть 6 цифр");
+        AssertTrue(int.TryParse(pin, out _), "PIN-код должен состоять только из цифр");
+
+        return Task.CompletedTask;
+    }
+
+    private static Task Test_ManualEntry_Categories_CustomIcons_AppBinding_104()
+    {
+        var cardEntry = new KeyEntry
+        {
+            Title = "Корпоративная карта",
+            Category = KeyCategory.BankCard,
+            CustomIconGlyph = "",
+            TargetAppOrUrl = @"C:\Windows\System32\calc.exe"
+        };
+
+        AssertEqual("", cardEntry.EffectiveGlyph, "EffectiveGlyph должен возвращать пользовательскую иконку");
+        AssertTrue(cardEntry.IsAppBinding, "Путь к .exe должен определяться как привязка к приложению (IsAppBinding)");
+        AssertTrue(cardEntry.HasLaunchTarget, "HasLaunchTarget должен быть true для .exe привязки");
+        AssertEqual("", cardEntry.LaunchTargetGlyph, "Иконка запуска приложения должна быть терминалом/программой");
+
+        var wifiEntry = new KeyEntry { Title = "Office Wi-Fi", Category = KeyCategory.Wifi };
+        AssertEqual("", wifiEntry.CategoryGlyph, "Категория Wifi должна иметь иконку Wi-Fi");
+
+        var cryptoEntry = new KeyEntry { Title = "Ledger Cold Wallet", Category = KeyCategory.Crypto };
+        AssertEqual("", cryptoEntry.CategoryGlyph, "Категория Crypto должна иметь иконку криптокошелька");
+
+        return Task.CompletedTask;
+    }
+
+    private static Task Test_TrayMenu_DynamicTheme_ColorRef_104()
+    {
+        uint midnightBg = StormTrayService.HexToColorRef("#141026");
+        AssertEqual(0x00261014u, midnightBg, "GDI COLORREF для #141026 должен быть 0x00261014 (BGR)");
+
+        uint violetAccent = StormTrayService.HexToColorRef("#8B5CF6");
+        AssertEqual(0x00F65C8Bu, violetAccent, "GDI COLORREF для #8B5CF6 должен быть 0x00F65C8B (BGR)");
 
         return Task.CompletedTask;
     }

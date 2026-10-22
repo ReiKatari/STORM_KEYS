@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Reflection;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -20,7 +21,45 @@ public interface IUpdateService
 public sealed class UpdateService : IUpdateService
 {
     private const string GitHubApiUrl = "https://api.github.com/repos/ReiKatari/STORM_KEYS/releases/latest";
-    public static readonly Version CurrentVersion = new(1, 0, 1);
+
+    /// <summary>
+    /// Динамическое определение текущей версии приложения из метаданных скомпилированной сборки (Single Source of Truth).
+    /// Нормализуется к формату Major.Minor.Build (3 компонента), чтобы исключить ложные срабатывания при сравнении 1.0.4.0 и 1.0.4.
+    /// </summary>
+    public static Version CurrentVersion => NormalizeVersion(
+        typeof(UpdateService).Assembly.GetName().Version
+        ?? Assembly.GetEntryAssembly()?.GetName().Version
+        ?? new Version(1, 0, 4));
+
+    public static string CurrentVersionString => $"{CurrentVersion.Major}.{CurrentVersion.Minor}.{CurrentVersion.Build}";
+
+    public static Version NormalizeVersion(Version v)
+    {
+        int major = Math.Max(0, v.Major);
+        int minor = Math.Max(0, v.Minor);
+        int build = Math.Max(0, v.Build);
+        return new Version(major, minor, build);
+    }
+
+    public static bool IsNewerVersion(string? remoteTag, Version? current = null)
+    {
+        if (string.IsNullOrWhiteSpace(remoteTag))
+            return false;
+
+        string clean = remoteTag.Trim().TrimStart('v', 'V').Trim();
+        int dashIdx = clean.IndexOf('-');
+        if (dashIdx > 0)
+            clean = clean[..dashIdx];
+
+        if (!Version.TryParse(clean, out var parsedRemote))
+            return false;
+
+        var normRemote = NormalizeVersion(parsedRemote);
+        var normCurrent = NormalizeVersion(current ?? CurrentVersion);
+
+        // Обновление доступно ТОЛЬКО если версия на сервере СТРОГО больше текущей установленной
+        return normRemote > normCurrent;
+    }
 
     private readonly HttpClient _httpClient;
 
@@ -30,7 +69,7 @@ public sealed class UpdateService : IUpdateService
         {
             Timeout = TimeSpan.FromSeconds(6)
         };
-        _httpClient.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("STORM-KEYS", "1.0.1"));
+        _httpClient.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("STORM-KEYS", CurrentVersionString));
     }
 
     public async Task<UpdateInfo?> CheckForUpdatesAsync(bool silent = true)
@@ -51,10 +90,7 @@ public sealed class UpdateService : IUpdateService
             string tag = tagElem.GetString() ?? string.Empty;
             string cleanVersion = tag.TrimStart('v', 'V').Trim();
 
-            if (!Version.TryParse(cleanVersion, out var remoteVer))
-                return null;
-
-            if (remoteVer <= CurrentVersion)
+            if (!IsNewerVersion(cleanVersion, CurrentVersion))
                 return null;
 
             string changelog = string.Empty;
