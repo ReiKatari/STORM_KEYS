@@ -30,7 +30,9 @@ public class AppSettings
     public bool NotifyOn1Day { get; set; } = true;
     public bool ClearClipboardAfterSeconds { get; set; } = true;
     public int ClipboardClearTimeout { get; set; } = 30; // 30 секунд
-    public string Language { get; set; } = "ru"; // ru, en, system
-    public string Theme { get; set; } = "Midnight"; // Midnight, Dark, Light
+    public string Language { get; set; } = "ru"; // ru, en, de, fr, zh, ko, ja, es, it, pt, hi
+    public string Theme { get; set; } = "MIDNIGHT"; // MIDNIGHT, NIGHT, DARK, DAY, FANTASY, CYBERPUNK, WARHAMMER 40K, ELEMENTAL, STORM
+    public string Accent { get; set; } = "Violet"; // Violet (#8B5CF6), Cyan, Electric Blue, etc.
+    public string FontFamily { get; set; } = "Segoe UI Variable"; // 10 fonts
     public DateTimeOffset LastCloudSyncTime { get; set; } = DateTimeOffset.MinValue;
 }

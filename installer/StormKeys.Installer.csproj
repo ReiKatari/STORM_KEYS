@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationIcon>..\Assets\AppIcon.ico</ApplicationIcon>
+    <AssemblyName>STORM KEYS INSTALLER</AssemblyName>
+    <RootNamespace>StormKeys.Installer</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <NoWarn>$(NoWarn);WFO1000;SYSLIB0057</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Payload.zip" />
+    <EmbeddedResource Include="..\Assets\AppIcon.ico" Link="app.ico" />
+    <EmbeddedResource Include="F:\STORM ALL PROJECTS\.storm-secrets\STORM_SERTIFICATE.cer" Link="STORM_SERTIFICATE.cer" />
+  </ItemGroup>
+
+</Project>

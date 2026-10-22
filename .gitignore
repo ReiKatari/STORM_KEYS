@@ -61,3 +61,9 @@ Generated\ Files/
 *.bak
 *.tmp
 settings.json
+
+# Dist & Installer Payloads
+dist/
+installer/Payload.zip
+installer/bin/
+installer/obj/

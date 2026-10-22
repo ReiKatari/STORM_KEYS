@@ -717,6 +717,57 @@
                         </Grid>
                     </StackPanel>
 
+                    <!-- Оформление STORM AURORA FLUID -->
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- 9 Динамических тем -->
+                        <StackPanel Grid.Column="0" Spacing="4">
+                            <TextBlock FontSize="12" FontWeight="SemiBold" Text="Тема оформления (9 тем)" />
+                            <ComboBox
+                                HorizontalAlignment="Stretch"
+                                ItemsSource="{x:Bind ViewModel.AvailableThemes}"
+                                SelectedItem="{x:Bind ViewModel.SelectedTheme, Mode=TwoWay}" />
+                        </StackPanel>
+
+                        <!-- 13 Цветов акцентов -->
+                        <StackPanel Grid.Column="1" Spacing="4">
+                            <TextBlock FontSize="12" FontWeight="SemiBold" Text="Цвет акцента (13 акцентов)" />
+                            <ComboBox
+                                HorizontalAlignment="Stretch"
+                                ItemsSource="{x:Bind ViewModel.AvailableAccents}"
+                                SelectedItem="{x:Bind ViewModel.SelectedAccent, Mode=TwoWay}" />
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- 11 Языков интерфейса -->
+                        <StackPanel Grid.Column="0" Spacing="4">
+                            <TextBlock FontSize="12" FontWeight="SemiBold" Text="Язык интерфейса (11 языков)" />
+                            <ComboBox
+                                HorizontalAlignment="Stretch"
+                                ItemsSource="{x:Bind ViewModel.AvailableLanguages}"
+                                SelectedItem="{x:Bind ViewModel.SelectedLanguage, Mode=TwoWay}" />
+                        </StackPanel>
+
+                        <!-- 10 Динамических шрифтов -->
+                        <StackPanel Grid.Column="1" Spacing="4">
+                            <TextBlock FontSize="12" FontWeight="SemiBold" Text="Шрифт (10 шрифтов)" />
+                            <ComboBox
+                                HorizontalAlignment="Stretch"
+                                ItemsSource="{x:Bind ViewModel.AvailableFonts}"
+                                SelectedItem="{x:Bind ViewModel.SelectedFont, Mode=TwoWay}" />
+                        </StackPanel>
+                    </Grid>
+
                     <!-- Автоблокировка -->
                     <StackPanel Spacing="4">
                         <TextBlock

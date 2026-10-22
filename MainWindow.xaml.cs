@@ -22,8 +22,8 @@ public sealed partial class MainWindow : Window
         AppWindow.SetIcon("Assets/Square44x44Logo.targetsize-24_altform-unplated.png");
         AppWindow.Title = "STORM KEYS";
 
-        // Размер окна по умолчанию
-        AppWindow.Resize(new Windows.Graphics.SizeInt32(1180, 780));
+        // Размер окна по умолчанию согласно стандарту STORM (Section 8: Desktop Default Geometry >= 1280x800)
+        AppWindow.Resize(new Windows.Graphics.SizeInt32(1280, 800));
 
         // Стандарт STORM: Закрытие в системный трей (Close-to-Tray)
         AppWindow.Closing += (sender, args) =>

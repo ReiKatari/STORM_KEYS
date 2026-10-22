@@ -148,6 +148,49 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private string _importSummaryText = string.Empty;
 
+    // Настройки интерфейса STORM AURORA FLUID
+    [ObservableProperty]
+    private string _selectedTheme = "MIDNIGHT";
+
+    [ObservableProperty]
+    private string _selectedAccent = "Violet";
+
+    [ObservableProperty]
+    private string _selectedAccentHex = "#8B5CF6";
+
+    [ObservableProperty]
+    private string _selectedLanguage = "ru";
+
+    [ObservableProperty]
+    private string _selectedFont = "Inter Variable";
+
+    public List<string> AvailableThemes { get; } = new()
+    {
+        "MIDNIGHT (Фиолетовая)", "NIGHT (OLED)", "DARK (Тёмная)", "DAY (Светлая)",
+        "FANTASY (Индиго)", "CYBERPUNK (2077)", "WARHAMMER 40K", "ELEMENTAL", "STORM (Шторм)"
+    };
+
+    public List<string> AvailableAccents { get; } = new()
+    {
+        "Violet (#8B5CF6)", "Cyan (#06B6D4)", "Electric Blue (#3B82F6)", "Royal Indigo (#6366F1)",
+        "Teal Mint (#14B8A6)", "Emerald Green (#10B981)", "Neon Lime (#84CC16)", "Amber Gold (#F59E0B)",
+        "Solar Orange (#F97316)", "Crimson Red (#EF4444)", "Rose Pink (#F43F5E)", "Magenta Fuchsia (#EC4899)",
+        "Platinum Silver (#E2E8F0)"
+    };
+
+    public List<string> AvailableLanguages { get; } = new()
+    {
+        "Русский (ru)", "English (en)", "Deutsch (de)", "Français (fr)",
+        "简体中文 (zh)", "한국어 (ko)", "日本語 (ja)", "Español (es)",
+        "Italiano (it)", "Português (pt)", "हिन्दी (hi)"
+    };
+
+    public List<string> AvailableFonts { get; } = new()
+    {
+        "Inter Variable", "Plus Jakarta Sans", "Geist Sans", "Manrope",
+        "Outfit", "Montserrat", "Rubik", "Orbitron", "JetBrains Mono", "Cascadia Code"
+    };
+
     // Стилизованная подсказка (TeachingTip)
     [ObservableProperty]
     private bool _isTeachingTipOpen;
@@ -195,6 +238,10 @@ public partial class MainViewModel : ObservableObject
         SettingsCloudFolder = _vaultService.Settings.CloudSyncFolderPath;
         SettingsCloudEnabled = _vaultService.Settings.CloudSyncEnabled;
         SettingsAutoLockMinutes = _vaultService.Settings.AutoLockMinutes;
+        SelectedTheme = string.IsNullOrEmpty(_vaultService.Settings.Theme) ? "MIDNIGHT" : _vaultService.Settings.Theme;
+        SelectedAccent = string.IsNullOrEmpty(_vaultService.Settings.Accent) ? "Violet" : _vaultService.Settings.Accent;
+        SelectedLanguage = string.IsNullOrEmpty(_vaultService.Settings.Language) ? "ru" : _vaultService.Settings.Language;
+        SelectedFont = string.IsNullOrEmpty(_vaultService.Settings.FontFamily) ? "Inter Variable" : _vaultService.Settings.FontFamily;
 
         _notificationService.OnInAppNotification += (title, msg, entry) =>
         {
@@ -588,6 +635,10 @@ public partial class MainViewModel : ObservableObject
         SettingsCloudFolder = _vaultService.Settings.CloudSyncFolderPath;
         SettingsCloudEnabled = _vaultService.Settings.CloudSyncEnabled;
         SettingsAutoLockMinutes = _vaultService.Settings.AutoLockMinutes;
+        SelectedTheme = string.IsNullOrEmpty(_vaultService.Settings.Theme) ? "MIDNIGHT" : _vaultService.Settings.Theme;
+        SelectedAccent = string.IsNullOrEmpty(_vaultService.Settings.Accent) ? "Violet" : _vaultService.Settings.Accent;
+        SelectedLanguage = string.IsNullOrEmpty(_vaultService.Settings.Language) ? "ru" : _vaultService.Settings.Language;
+        SelectedFont = string.IsNullOrEmpty(_vaultService.Settings.FontFamily) ? "Inter Variable" : _vaultService.Settings.FontFamily;
         IsSettingsDialogVisible = true;
     }
 
@@ -597,6 +648,10 @@ public partial class MainViewModel : ObservableObject
         _vaultService.Settings.CloudSyncFolderPath = SettingsCloudFolder.Trim();
         _vaultService.Settings.CloudSyncEnabled = SettingsCloudEnabled;
         _vaultService.Settings.AutoLockMinutes = SettingsAutoLockMinutes;
+        _vaultService.Settings.Theme = SelectedTheme;
+        _vaultService.Settings.Accent = SelectedAccent;
+        _vaultService.Settings.Language = SelectedLanguage;
+        _vaultService.Settings.FontFamily = SelectedFont;
         await _vaultService.SaveSettingsAsync();
         UpdateCloudStatus();
         IsSettingsDialogVisible = false;
