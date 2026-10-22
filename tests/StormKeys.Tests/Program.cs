@@ -29,6 +29,8 @@ public static class Program
         await RunTest("CSV: Полный цикл экспорта и импорта данных", Test_Csv_Export_Import_RoundTrip);
         await RunTest("JSON: Парсинг структуры Bitwarden и Generic", Test_Json_Import);
         await RunTest("Сертификат: Проверка статуса STORM ECOSYSTEM", Test_Storm_Certificate);
+        await RunTest("Оформление: 9 тем, 13 акцентов, 10 шрифтов (STORM AURORA FLUID)", Test_ThemeService_Definitions);
+        await RunTest("Локализация: 11 языков и язык системы по умолчанию", Test_LocalizationService_Definitions);
 
         Console.WriteLine("-------------------------------------------------");
         Console.WriteLine($"РЕЗУЛЬТАТ: Успешно: {_passed} | Ошибок: {_failed}");
@@ -269,6 +271,59 @@ public static class Program
         var status = certService.CheckStatus();
         AssertTrue(status.IsCertified, "Статус сертификации должен быть подтвержден");
         AssertTrue(!string.IsNullOrEmpty(status.StatusText), "Текст статуса пуст");
+        return Task.CompletedTask;
+    }
+
+    private static Task Test_ThemeService_Definitions()
+    {
+        AssertEqual(9, ThemeService.Themes.Count, "Должно быть ровно 9 тем оформления");
+        AssertEqual(13, ThemeService.Accents.Count, "Должно быть ровно 13 цветов акцентов");
+        AssertEqual(10, ThemeService.Fonts.Count, "Должно быть ровно 10 шрифтов");
+
+        // Проверка парсинга всех тем
+        foreach (var theme in ThemeService.Themes)
+        {
+            var bg = ThemeService.ColorFromHex(theme.BackgroundHex);
+            AssertTrue(bg.A == 255, $"Цвет фона темы {theme.Key} должен быть непрозрачным");
+        }
+
+        // Проверка парсинга всех акцентов
+        foreach (var accent in ThemeService.Accents)
+        {
+            var col = ThemeService.ColorFromHex(accent.Hex);
+            AssertTrue(col.A == 255, $"Цвет акцента {accent.Key} должен быть непрозрачным");
+        }
+
+        // Проверка фолбэка
+        var fallbackTheme = ThemeService.GetTheme("UNKNOWN_THEME");
+        AssertEqual("MIDNIGHT", fallbackTheme.Key, "Фолбэк темы должен быть MIDNIGHT");
+
+        var fallbackAccent = ThemeService.GetAccent("UNKNOWN_ACCENT");
+        AssertEqual("Violet", fallbackAccent.Key, "Фолбэк акцента должен быть Violet");
+
+        return Task.CompletedTask;
+    }
+
+    private static Task Test_LocalizationService_Definitions()
+    {
+        AssertEqual(11, LocalizationService.Languages.Count, "Должно быть ровно 11 языков");
+
+        var sysLang = LocalizationService.GetSystemLanguageCode();
+        AssertTrue(!string.IsNullOrEmpty(sysLang), "Код языка системы не должен быть пустым");
+
+        // Проверка наличия ключевых строк для всех 11 языков
+        foreach (var lang in LocalizationService.Languages)
+        {
+            var title = LocalizationService.GetString("AppTitle", lang.Code);
+            AssertEqual("STORM KEYS", title, $"Заголовок приложения для {lang.Code} должен быть STORM KEYS");
+
+            var add = LocalizationService.GetString("Add", lang.Code);
+            AssertTrue(!string.IsNullOrWhiteSpace(add), $"Строка Add для {lang.Code} не должна быть пустой");
+
+            var save = LocalizationService.GetString("SettingsSave", lang.Code);
+            AssertTrue(!string.IsNullOrWhiteSpace(save), $"Строка SettingsSave для {lang.Code} не должна быть пустой");
+        }
+
         return Task.CompletedTask;
     }
 

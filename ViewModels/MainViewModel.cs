@@ -1,3 +1,5 @@
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Media;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -176,46 +178,66 @@ public partial class MainViewModel : ObservableObject
 
     // Настройки интерфейса STORM AURORA FLUID
     [ObservableProperty]
-    private string _selectedTheme = "MIDNIGHT";
+    private string _selectedTheme = "MIDNIGHT (Фиолетовая)";
 
     [ObservableProperty]
-    private string _selectedAccent = "Violet";
+    private string _selectedAccent = "Violet (#8B5CF6)";
 
     [ObservableProperty]
     private string _selectedAccentHex = "#8B5CF6";
 
     [ObservableProperty]
-    private string _selectedLanguage = "ru";
+    private string _selectedLanguage = "Русский (ru)";
 
     [ObservableProperty]
     private string _selectedFont = "Inter Variable";
 
-    public List<string> AvailableThemes { get; } = new()
-    {
-        "MIDNIGHT (Фиолетовая)", "NIGHT (OLED)", "DARK (Тёмная)", "DAY (Светлая)",
-        "FANTASY (Индиго)", "CYBERPUNK (2077)", "WARHAMMER 40K", "ELEMENTAL", "STORM (Шторм)"
-    };
+    public List<string> AvailableThemes { get; } = ThemeService.Themes.Select(t => t.DisplayName).ToList();
+    public List<string> AvailableAccents { get; } = ThemeService.Accents.Select(a => a.DisplayName).ToList();
+    public List<string> AvailableLanguages { get; } = LocalizationService.Languages.Select(l => l.DisplayName).ToList();
+    public List<string> AvailableFonts { get; } = ThemeService.Fonts.Select(f => f.DisplayName).ToList();
 
-    public List<string> AvailableAccents { get; } = new()
-    {
-        "Violet (#8B5CF6)", "Cyan (#06B6D4)", "Electric Blue (#3B82F6)", "Royal Indigo (#6366F1)",
-        "Teal Mint (#14B8A6)", "Emerald Green (#10B981)", "Neon Lime (#84CC16)", "Amber Gold (#F59E0B)",
-        "Solar Orange (#F97316)", "Crimson Red (#EF4444)", "Rose Pink (#F43F5E)", "Magenta Fuchsia (#EC4899)",
-        "Platinum Silver (#E2E8F0)"
-    };
+    // Динамические стили и кисти оформления
+    [ObservableProperty] private SolidColorBrush _currentBackgroundBrush = new(ThemeService.ColorFromHex("#0D0B18"));
+    [ObservableProperty] private SolidColorBrush _currentHeaderBrush = new(ThemeService.ColorFromHex("#141026"));
+    [ObservableProperty] private SolidColorBrush _currentSurfaceBrush = new(ThemeService.ColorFromHex("#17132B"));
+    [ObservableProperty] private SolidColorBrush _currentCardBrush = new(ThemeService.ColorFromHex("#1F193B"));
+    [ObservableProperty] private SolidColorBrush _currentCardStrokeBrush = new(ThemeService.ColorFromHex("#372E63"));
+    [ObservableProperty] private SolidColorBrush _currentTextPrimaryBrush = new(ThemeService.ColorFromHex("#FFFFFF"));
+    [ObservableProperty] private SolidColorBrush _currentTextSecondaryBrush = new(ThemeService.ColorFromHex("#A79EC8"));
+    [ObservableProperty] private SolidColorBrush _currentAccentBrush = new(ThemeService.ColorFromHex("#8B5CF6"));
+    [ObservableProperty] private FontFamily _currentFontFamily = new("Inter Variable, Segoe UI Variable Text, Segoe UI");
 
-    public List<string> AvailableLanguages { get; } = new()
-    {
-        "Русский (ru)", "English (en)", "Deutsch (de)", "Français (fr)",
-        "简体中文 (zh)", "한국어 (ko)", "日本語 (ja)", "Español (es)",
-        "Italiano (it)", "Português (pt)", "हिन्दी (hi)"
-    };
-
-    public List<string> AvailableFonts { get; } = new()
-    {
-        "Inter Variable", "Plus Jakarta Sans", "Geist Sans", "Manrope",
-        "Outfit", "Montserrat", "Rubik", "Orbitron", "JetBrains Mono", "Cascadia Code"
-    };
+    // Динамические локализованные строки (11 языков)
+    [ObservableProperty] private string _uiTitle = "STORM KEYS";
+    [ObservableProperty] private string _uiSubtitle = "Менеджер ключей, паролей и лицензий";
+    [ObservableProperty] private string _uiSearchPlaceholder = "Поиск по названию, логину, сервису или заметкам...";
+    [ObservableProperty] private string _uiAdd = "Добавить";
+    [ObservableProperty] private string _uiImport = "Импорт";
+    [ObservableProperty] private string _uiExport = "Экспорт";
+    [ObservableProperty] private string _uiSettings = "Настройки";
+    [ObservableProperty] private string _uiLock = "Заблокировать";
+    [ObservableProperty] private string _uiTotalKeys = "Всего ключей и паролей";
+    [ObservableProperty] private string _uiExpiringSoon = "Истекают скоро (≤30 дн.)";
+    [ObservableProperty] private string _uiExpiredLicenses = "Истёкшие лицензии";
+    [ObservableProperty] private string _uiSyncStatus = "Статус синхронизации";
+    [ObservableProperty] private string _uiCategoryAll = "Все категории";
+    [ObservableProperty] private string _uiExpirationAll = "Все сроки";
+    [ObservableProperty] private string _uiSettingsTitle = "Настройки STORM KEYS";
+    [ObservableProperty] private string _uiSettingsLocalVault = "Локальное зашифрованное хранилище";
+    [ObservableProperty] private string _uiSettingsCloudSync = "Синхронизация с облачным диском (OneDrive, Google Drive, WebDAV)";
+    [ObservableProperty] private string _uiSettingsTheme = "Тема оформления (9 тем)";
+    [ObservableProperty] private string _uiSettingsAccent = "Цвет акцента (13 акцентов)";
+    [ObservableProperty] private string _uiSettingsLanguage = "Язык интерфейса (11 языков)";
+    [ObservableProperty] private string _uiSettingsFont = "Шрифт (10 шрифтов)";
+    [ObservableProperty] private string _uiSettingsAutoLock = "Автоблокировка при бездействии";
+    [ObservableProperty] private string _uiSettingsSave = "Сохранить";
+    [ObservableProperty] private string _uiSettingsClose = "Закрыть";
+    [ObservableProperty] private string _uiCheckUpdates = "Проверить";
+    [ObservableProperty] private string _uiInstallUpdate = "Установить";
+    [ObservableProperty] private string _uiPlatformCert = "STORM INTEGRATED PLATFORM";
+    [ObservableProperty] private string _uiPlatformCertDesc = "Шифрование AES-256-GCM • Хеширование Argon2id • Экосистема STORM";
+    [ObservableProperty] private string _uiUpdatesHeader = "Обновления STORM KEYS";
 
     // Стилизованная подсказка (TeachingTip)
     [ObservableProperty]
@@ -266,10 +288,20 @@ public partial class MainViewModel : ObservableObject
         SettingsCloudFolder = _vaultService.Settings.CloudSyncFolderPath;
         SettingsCloudEnabled = _vaultService.Settings.CloudSyncEnabled;
         SettingsAutoLockMinutes = _vaultService.Settings.AutoLockMinutes;
-        SelectedTheme = string.IsNullOrEmpty(_vaultService.Settings.Theme) ? "MIDNIGHT" : _vaultService.Settings.Theme;
-        SelectedAccent = string.IsNullOrEmpty(_vaultService.Settings.Accent) ? "Violet" : _vaultService.Settings.Accent;
-        SelectedLanguage = string.IsNullOrEmpty(_vaultService.Settings.Language) ? "ru" : _vaultService.Settings.Language;
-        SelectedFont = string.IsNullOrEmpty(_vaultService.Settings.FontFamily) ? "Inter Variable" : _vaultService.Settings.FontFamily;
+        var savedTheme = _vaultService.Settings.Theme ?? "MIDNIGHT";
+        SelectedTheme = AvailableThemes.FirstOrDefault(t => t.StartsWith(savedTheme, StringComparison.OrdinalIgnoreCase)) ?? AvailableThemes[0];
+
+        var savedAccent = _vaultService.Settings.Accent ?? "Violet";
+        SelectedAccent = AvailableAccents.FirstOrDefault(a => a.StartsWith(savedAccent, StringComparison.OrdinalIgnoreCase)) ?? AvailableAccents[0];
+
+        var savedLang = string.IsNullOrEmpty(_vaultService.Settings.Language) ? LocalizationService.GetSystemLanguageCode() : _vaultService.Settings.Language;
+        SelectedLanguage = AvailableLanguages.FirstOrDefault(l => l.Contains($"({savedLang})", StringComparison.OrdinalIgnoreCase)) ?? AvailableLanguages[0];
+
+        var savedFont = _vaultService.Settings.FontFamily ?? "Inter Variable";
+        SelectedFont = AvailableFonts.FirstOrDefault(f => f.StartsWith(savedFont, StringComparison.OrdinalIgnoreCase)) ?? AvailableFonts[0];
+
+        ApplyCurrentTheme();
+        ApplyCurrentLanguage(LocalizationService.GetLanguage(SelectedLanguage).Code);
 
         _notificationService.OnInAppNotification += (title, msg, entry) =>
         {
@@ -686,10 +718,20 @@ public partial class MainViewModel : ObservableObject
         SettingsCloudFolder = _vaultService.Settings.CloudSyncFolderPath;
         SettingsCloudEnabled = _vaultService.Settings.CloudSyncEnabled;
         SettingsAutoLockMinutes = _vaultService.Settings.AutoLockMinutes;
-        SelectedTheme = string.IsNullOrEmpty(_vaultService.Settings.Theme) ? "MIDNIGHT" : _vaultService.Settings.Theme;
-        SelectedAccent = string.IsNullOrEmpty(_vaultService.Settings.Accent) ? "Violet" : _vaultService.Settings.Accent;
-        SelectedLanguage = string.IsNullOrEmpty(_vaultService.Settings.Language) ? "ru" : _vaultService.Settings.Language;
-        SelectedFont = string.IsNullOrEmpty(_vaultService.Settings.FontFamily) ? "Inter Variable" : _vaultService.Settings.FontFamily;
+        var savedTheme = _vaultService.Settings.Theme ?? "MIDNIGHT";
+        SelectedTheme = AvailableThemes.FirstOrDefault(t => t.StartsWith(savedTheme, StringComparison.OrdinalIgnoreCase)) ?? AvailableThemes[0];
+
+        var savedAccent = _vaultService.Settings.Accent ?? "Violet";
+        SelectedAccent = AvailableAccents.FirstOrDefault(a => a.StartsWith(savedAccent, StringComparison.OrdinalIgnoreCase)) ?? AvailableAccents[0];
+
+        var savedLang = string.IsNullOrEmpty(_vaultService.Settings.Language) ? LocalizationService.GetSystemLanguageCode() : _vaultService.Settings.Language;
+        SelectedLanguage = AvailableLanguages.FirstOrDefault(l => l.Contains($"({savedLang})", StringComparison.OrdinalIgnoreCase)) ?? AvailableLanguages[0];
+
+        var savedFont = _vaultService.Settings.FontFamily ?? "Inter Variable";
+        SelectedFont = AvailableFonts.FirstOrDefault(f => f.StartsWith(savedFont, StringComparison.OrdinalIgnoreCase)) ?? AvailableFonts[0];
+
+        ApplyCurrentTheme();
+        ApplyCurrentLanguage(LocalizationService.GetLanguage(SelectedLanguage).Code);
         IsSettingsDialogVisible = true;
     }
 
@@ -708,6 +750,91 @@ public partial class MainViewModel : ObservableObject
         IsSettingsDialogVisible = false;
         StatusMessage = "Настройки успешно сохранены.";
     }
+
+    partial void OnSelectedThemeChanged(string value)
+    {
+        ApplyCurrentTheme();
+    }
+
+    partial void OnSelectedAccentChanged(string value)
+    {
+        var accentDef = ThemeService.GetAccent(value);
+        SelectedAccentHex = accentDef.Hex;
+        ApplyCurrentTheme();
+    }
+
+    partial void OnSelectedLanguageChanged(string value)
+    {
+        var langDef = LocalizationService.GetLanguage(value);
+        ApplyCurrentLanguage(langDef.Code);
+    }
+
+    partial void OnSelectedFontChanged(string value)
+    {
+        var fontDef = ThemeService.GetFont(value);
+        CurrentFontFamily = new FontFamily(fontDef.FontFamily);
+    }
+
+    public void ApplyCurrentTheme()
+    {
+        try
+        {
+            var themeDef = ThemeService.GetTheme(SelectedTheme);
+            var accentDef = ThemeService.GetAccent(SelectedAccent);
+            var fontDef = ThemeService.GetFont(SelectedFont);
+
+            CurrentBackgroundBrush = new SolidColorBrush(ThemeService.ColorFromHex(themeDef.BackgroundHex));
+            CurrentHeaderBrush = new SolidColorBrush(ThemeService.ColorFromHex(themeDef.HeaderHex));
+            CurrentSurfaceBrush = new SolidColorBrush(ThemeService.ColorFromHex(themeDef.SurfaceHex));
+            CurrentCardBrush = new SolidColorBrush(ThemeService.ColorFromHex(themeDef.CardHex));
+            CurrentCardStrokeBrush = new SolidColorBrush(ThemeService.ColorFromHex(themeDef.CardStrokeHex));
+            CurrentTextPrimaryBrush = new SolidColorBrush(ThemeService.ColorFromHex(themeDef.TextPrimaryHex));
+            CurrentTextSecondaryBrush = new SolidColorBrush(ThemeService.ColorFromHex(themeDef.TextSecondaryHex));
+            CurrentAccentBrush = new SolidColorBrush(ThemeService.ColorFromHex(accentDef.Hex));
+            CurrentFontFamily = new FontFamily(fontDef.FontFamily);
+
+            ThemeService.ApplyToResources(themeDef.Key, accentDef.Key, fontDef.Key, MainWindow.Instance?.Content as FrameworkElement);
+        }
+        catch { }
+    }
+
+    public void ApplyCurrentLanguage(string langCode)
+    {
+        try
+        {
+            UiTitle = LocalizationService.GetString("AppTitle", langCode);
+            UiSubtitle = LocalizationService.GetString("AppSubtitle", langCode);
+            UiSearchPlaceholder = LocalizationService.GetString("SearchPlaceholder", langCode);
+            UiAdd = LocalizationService.GetString("Add", langCode);
+            UiImport = LocalizationService.GetString("Import", langCode);
+            UiExport = LocalizationService.GetString("Export", langCode);
+            UiSettings = LocalizationService.GetString("Settings", langCode);
+            UiLock = LocalizationService.GetString("Lock", langCode);
+            UiTotalKeys = LocalizationService.GetString("TotalKeys", langCode);
+            UiExpiringSoon = LocalizationService.GetString("ExpiringSoon", langCode);
+            UiExpiredLicenses = LocalizationService.GetString("ExpiredLicenses", langCode);
+            UiSyncStatus = LocalizationService.GetString("SyncStatus", langCode);
+            UiCategoryAll = LocalizationService.GetString("CategoryAll", langCode);
+            UiExpirationAll = LocalizationService.GetString("ExpirationAll", langCode);
+            UiSettingsTitle = LocalizationService.GetString("SettingsTitle", langCode);
+            UiSettingsLocalVault = LocalizationService.GetString("SettingsLocalVault", langCode);
+            UiSettingsCloudSync = LocalizationService.GetString("SettingsCloudSync", langCode);
+            UiSettingsTheme = LocalizationService.GetString("SettingsTheme", langCode);
+            UiSettingsAccent = LocalizationService.GetString("SettingsAccent", langCode);
+            UiSettingsLanguage = LocalizationService.GetString("SettingsLanguage", langCode);
+            UiSettingsFont = LocalizationService.GetString("SettingsFont", langCode);
+            UiSettingsAutoLock = LocalizationService.GetString("SettingsAutoLock", langCode);
+            UiSettingsSave = LocalizationService.GetString("SettingsSave", langCode);
+            UiSettingsClose = LocalizationService.GetString("SettingsClose", langCode);
+            UiCheckUpdates = LocalizationService.GetString("CheckUpdates", langCode);
+            UiInstallUpdate = LocalizationService.GetString("InstallUpdate", langCode);
+            UiPlatformCert = LocalizationService.GetString("PlatformCert", langCode);
+            UiPlatformCertDesc = LocalizationService.GetString("PlatformCertDesc", langCode);
+            UiUpdatesHeader = LocalizationService.GetString("UpdatesHeader", langCode);
+        }
+        catch { }
+    }
+
 
     [RelayCommand]
     public async Task ImportFromClipboardAsync()

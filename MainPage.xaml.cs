@@ -99,6 +99,47 @@ public sealed partial class MainPage : Page
     {
         InitializeComponent();
         Loaded += MainPage_Loaded;
+        PreviewKeyDown += MainPage_PreviewKeyDown;
+    }
+
+    private void MainPage_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key == Windows.System.VirtualKey.Escape)
+        {
+            if (ViewModel == null) return;
+
+            // Стилизованная подсказка (TeachingTip)
+            if (ViewModel.IsTeachingTipOpen)
+            {
+                ViewModel.IsTeachingTipOpen = false;
+                e.Handled = true;
+                return;
+            }
+
+            // Окно настроек
+            if (ViewModel.IsSettingsDialogVisible)
+            {
+                ViewModel.IsSettingsDialogVisible = false;
+                e.Handled = true;
+                return;
+            }
+
+            // Окно добавления/редактирования записи
+            if (ViewModel.IsEditDialogVisible)
+            {
+                ViewModel.IsEditDialogVisible = false;
+                e.Handled = true;
+                return;
+            }
+
+            // Диалог импорта
+            if (ViewModel.IsImportDialogVisible)
+            {
+                ViewModel.IsImportDialogVisible = false;
+                e.Handled = true;
+                return;
+            }
+        }
     }
 
     private void MainPage_Loaded(object sender, RoutedEventArgs e)

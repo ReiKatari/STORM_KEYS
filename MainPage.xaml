@@ -8,7 +8,7 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
 
-    <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+    <Grid Background="{x:Bind ViewModel.CurrentBackgroundBrush, Mode=OneWay}">
         <!-- ОСНОВНАЯ ОБЛАСТЬ ПРИЛОЖЕНИЯ (КОГДА РАЗБЛОКИРОВАНО) -->
         <Grid Visibility="{x:Bind InvBoolToVis(ViewModel.IsVaultLocked), Mode=OneWay}">
             <Grid.RowDefinitions>
@@ -22,7 +22,8 @@
             <Border
                 Grid.Row="0"
                 Padding="24,12,24,12"
-                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                Background="{x:Bind ViewModel.CurrentHeaderBrush, Mode=OneWay}"
+                BorderBrush="{x:Bind ViewModel.CurrentCardStrokeBrush, Mode=OneWay}"
                 BorderThickness="0,0,0,1">
                 <Grid ColumnSpacing="16">
                     <Grid.ColumnDefinitions>
@@ -40,7 +41,7 @@
                         <Border
                             Width="36"
                             Height="36"
-                            Background="#0078D4"
+                            Background="{x:Bind ViewModel.CurrentAccentBrush, Mode=OneWay}"
                             CornerRadius="8">
                             <FontIcon
                                 HorizontalAlignment="Center"
@@ -54,7 +55,8 @@
                                 <TextBlock
                                     FontSize="16"
                                     FontWeight="Bold"
-                                    Text="STORM KEYS" />
+                                    Text="{x:Bind ViewModel.UiTitle, Mode=OneWay}"
+                                    Foreground="{x:Bind ViewModel.CurrentTextPrimaryBrush, Mode=OneWay}" />
                                 <Border
                                     Padding="6,1,6,1"
                                     Background="#26107C41"
@@ -70,8 +72,8 @@
                             </StackPanel>
                             <TextBlock
                                 FontSize="11"
-                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                Text="Менеджер ключей, паролей и лицензий" />
+                                Foreground="{x:Bind ViewModel.CurrentTextSecondaryBrush, Mode=OneWay}"
+                                Text="{x:Bind ViewModel.UiSubtitle, Mode=OneWay}" />
                         </StackPanel>
                     </StackPanel>
 
@@ -81,7 +83,7 @@
                         MaxWidth="480"
                         HorizontalAlignment="Stretch"
                         VerticalAlignment="Center"
-                        PlaceholderText="Поиск по названию, логину, сервису или заметкам..."
+                        PlaceholderText="{x:Bind ViewModel.UiSearchPlaceholder, Mode=OneWay}"
                         QueryIcon="Find"
                         Text="{x:Bind ViewModel.SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
@@ -91,20 +93,20 @@
                         Orientation="Horizontal"
                         Spacing="8">
                         <Button
-                            Background="{ThemeResource AccentFillColorDefaultBrush}"
+                            Background="{x:Bind ViewModel.CurrentAccentBrush, Mode=OneWay}"
                             Click="AddEntry_Click"
-                            Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
+                            Foreground="#FFFFFF"
                             ToolTipService.ToolTip="Добавить новый ключ или пароль">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE710;" />
-                                <TextBlock FontWeight="SemiBold" Text="Добавить" />
+                                <TextBlock FontWeight="SemiBold" Text="{x:Bind ViewModel.UiAdd, Mode=OneWay}" />
                             </StackPanel>
                         </Button>
 
                         <Button Click="ImportMenu_Click" ToolTipService.ToolTip="Импорт ключей и паролей">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE8B5;" />
-                                <TextBlock Text="Импорт" />
+                                <TextBlock Text="{x:Bind ViewModel.UiImport, Mode=OneWay}" />
                             </StackPanel>
                             <Button.Flyout>
                                 <MenuFlyout>
@@ -125,7 +127,7 @@
                         <Button Click="ExportMenu_Click" ToolTipService.ToolTip="Экспорт хранилища">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xEDE1;" />
-                                <TextBlock Text="Экспорт" />
+                                <TextBlock Text="{x:Bind ViewModel.UiExport, Mode=OneWay}" />
                             </StackPanel>
                             <Button.Flyout>
                                 <MenuFlyout>
@@ -175,7 +177,7 @@
                             <TextBlock
                                 FontSize="12"
                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                Text="Всего ключей и паролей" />
+                                Text="{x:Bind ViewModel.UiTotalKeys, Mode=OneWay}" />
                             <TextBlock
                                 FontSize="22"
                                 FontWeight="Bold"
@@ -205,7 +207,7 @@
                             <TextBlock
                                 FontSize="12"
                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                Text="Истекают скоро (≤30 дн.)" />
+                                Text="{x:Bind ViewModel.UiExpiringSoon, Mode=OneWay}" />
                             <TextBlock
                                 FontSize="22"
                                 FontWeight="Bold"
@@ -236,7 +238,7 @@
                             <TextBlock
                                 FontSize="12"
                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                Text="Истёкшие лицензии" />
+                                Text="{x:Bind ViewModel.UiExpiredLicenses, Mode=OneWay}" />
                             <TextBlock
                                 FontSize="22"
                                 FontWeight="Bold"
@@ -267,7 +269,7 @@
                             <TextBlock
                                 FontSize="12"
                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                Text="Статус синхронизации" />
+                                Text="{x:Bind ViewModel.UiSyncStatus, Mode=OneWay}" />
                             <TextBlock
                                 FontSize="13"
                                 FontWeight="SemiBold"
@@ -679,25 +681,26 @@
                 Margin="24"
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center"
-                Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
-                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                Background="{x:Bind ViewModel.CurrentHeaderBrush, Mode=OneWay}"
+                BorderBrush="{x:Bind ViewModel.CurrentCardStrokeBrush, Mode=OneWay}"
                 BorderThickness="1"
                 CornerRadius="12">
                 <StackPanel Padding="28" Spacing="16">
                     <TextBlock
                         FontSize="18"
                         FontWeight="Bold"
-                        Text="Настройки STORM KEYS" />
+                        Text="{x:Bind ViewModel.UiSettingsTitle, Mode=OneWay}"
+                        Foreground="{x:Bind ViewModel.CurrentTextPrimaryBrush, Mode=OneWay}" />
 
                     <!-- Локальный путь -->
                     <TextBox
-                        Header="Локальное зашифрованное хранилище"
+                        Header="{x:Bind ViewModel.UiSettingsLocalVault, Mode=OneWay}"
                         IsReadOnly="True"
                         Text="{x:Bind ViewModel.SettingsLocalPath, Mode=OneWay}" />
 
                     <!-- Облачная синхронизация -->
                     <StackPanel Spacing="8">
-                        <ToggleSwitch Header="Синхронизация с облачным диском (OneDrive, Google Drive, WebDAV)" IsOn="{x:Bind ViewModel.SettingsCloudEnabled, Mode=TwoWay}" />
+                        <ToggleSwitch Header="{x:Bind ViewModel.UiSettingsCloudSync, Mode=OneWay}" IsOn="{x:Bind ViewModel.SettingsCloudEnabled, Mode=TwoWay}" />
 
                         <Grid ColumnSpacing="8" Visibility="{x:Bind BoolToVis(ViewModel.SettingsCloudEnabled), Mode=OneWay}">
                             <Grid.ColumnDefinitions>
@@ -726,7 +729,7 @@
 
                         <!-- 9 Динамических тем -->
                         <StackPanel Grid.Column="0" Spacing="4">
-                            <TextBlock FontSize="12" FontWeight="SemiBold" Text="Тема оформления (9 тем)" />
+                            <TextBlock FontSize="12" FontWeight="SemiBold" Text="{x:Bind ViewModel.UiSettingsTheme, Mode=OneWay}" Foreground="{x:Bind ViewModel.CurrentTextPrimaryBrush, Mode=OneWay}" />
                             <ComboBox
                                 HorizontalAlignment="Stretch"
                                 ItemsSource="{x:Bind ViewModel.AvailableThemes}"
@@ -735,7 +738,7 @@
 
                         <!-- 13 Цветов акцентов -->
                         <StackPanel Grid.Column="1" Spacing="4">
-                            <TextBlock FontSize="12" FontWeight="SemiBold" Text="Цвет акцента (13 акцентов)" />
+                            <TextBlock FontSize="12" FontWeight="SemiBold" Text="{x:Bind ViewModel.UiSettingsAccent, Mode=OneWay}" Foreground="{x:Bind ViewModel.CurrentTextPrimaryBrush, Mode=OneWay}" />
                             <ComboBox
                                 HorizontalAlignment="Stretch"
                                 ItemsSource="{x:Bind ViewModel.AvailableAccents}"
@@ -751,7 +754,7 @@
 
                         <!-- 11 Языков интерфейса -->
                         <StackPanel Grid.Column="0" Spacing="4">
-                            <TextBlock FontSize="12" FontWeight="SemiBold" Text="Язык интерфейса (11 языков)" />
+                            <TextBlock FontSize="12" FontWeight="SemiBold" Text="{x:Bind ViewModel.UiSettingsLanguage, Mode=OneWay}" Foreground="{x:Bind ViewModel.CurrentTextPrimaryBrush, Mode=OneWay}" />
                             <ComboBox
                                 HorizontalAlignment="Stretch"
                                 ItemsSource="{x:Bind ViewModel.AvailableLanguages}"
@@ -760,7 +763,7 @@
 
                         <!-- 10 Динамических шрифтов -->
                         <StackPanel Grid.Column="1" Spacing="4">
-                            <TextBlock FontSize="12" FontWeight="SemiBold" Text="Шрифт (10 шрифтов)" />
+                            <TextBlock FontSize="12" FontWeight="SemiBold" Text="{x:Bind ViewModel.UiSettingsFont, Mode=OneWay}" Foreground="{x:Bind ViewModel.CurrentTextPrimaryBrush, Mode=OneWay}" />
                             <ComboBox
                                 HorizontalAlignment="Stretch"
                                 ItemsSource="{x:Bind ViewModel.AvailableFonts}"
@@ -773,7 +776,8 @@
                         <TextBlock
                             FontSize="13"
                             FontWeight="SemiBold"
-                            Text="Автоблокировка при бездействии" />
+                            Text="{x:Bind ViewModel.UiSettingsAutoLock, Mode=OneWay}"
+                            Foreground="{x:Bind ViewModel.CurrentTextPrimaryBrush, Mode=OneWay}" />
                         <ComboBox
                             HorizontalAlignment="Stretch"
                             ItemsSource="{x:Bind AutoLockOptions}"
@@ -819,7 +823,7 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                    <TextBlock FontWeight="SemiBold" Text="Обновления STORM KEYS" />
+                                    <TextBlock FontWeight="SemiBold" Text="{x:Bind ViewModel.UiUpdatesHeader, Mode=OneWay}" Foreground="{x:Bind ViewModel.CurrentTextPrimaryBrush, Mode=OneWay}" />
                                     <TextBlock
                                         FontSize="11"
                                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"
@@ -831,7 +835,7 @@
                                     IsEnabled="{x:Bind Not(ViewModel.IsCheckingUpdate), Mode=OneWay}">
                                     <StackPanel Orientation="Horizontal" Spacing="6">
                                         <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE895;" />
-                                        <TextBlock Text="Проверить" />
+                                        <TextBlock Text="{x:Bind ViewModel.UiCheckUpdates, Mode=OneWay}" />
                                     </StackPanel>
                                 </Button>
                             </Grid>
@@ -845,7 +849,7 @@
                                     Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}">
                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8">
                                         <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE896;" />
-                                        <TextBlock Text="Установить обновление" />
+                                        <TextBlock Text="{x:Bind ViewModel.UiInstallUpdate, Mode=OneWay}" />
                                     </StackPanel>
                                 </Button>
                             </StackPanel>
@@ -862,16 +866,16 @@
                         <Button
                             Grid.Column="0"
                             HorizontalAlignment="Stretch"
-                            Background="{ThemeResource AccentFillColorDefaultBrush}"
+                            Background="{x:Bind ViewModel.CurrentAccentBrush, Mode=OneWay}"
                             Command="{x:Bind ViewModel.SaveSettingsCommand}"
-                            Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
-                            Content="Сохранить" />
+                            Foreground="#FFFFFF"
+                            Content="{x:Bind ViewModel.UiSettingsSave, Mode=OneWay}" />
 
                         <Button
                             Grid.Column="1"
                             HorizontalAlignment="Stretch"
                             Click="CloseSettingsDialog_Click"
-                            Content="Закрыть" />
+                            Content="{x:Bind ViewModel.UiSettingsClose, Mode=OneWay}" />
                     </Grid>
                 </StackPanel>
             </Border>

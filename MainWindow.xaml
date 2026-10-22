@@ -19,9 +19,9 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <TitleBar x:Name="AppTitleBar" Title="STORM KEYS 1.0.0">
+        <TitleBar x:Name="AppTitleBar" Title="STORM KEYS">
             <TitleBar.IconSource>
-                <ImageIconSource ImageSource="Assets/AppIcon.ico" />
+                <ImageIconSource ImageSource="ms-appx:///Assets/Square44x44Logo.scale-200.png" />
             </TitleBar.IconSource>
         </TitleBar>
 
@@ -33,22 +33,10 @@
             IconSource="/Assets/AppIcon.ico">
             <tb:TaskbarIcon.ContextFlyout>
                 <MenuFlyout>
-                    <MenuFlyoutItem x:Name="MenuOpenApp" Text="Открыть STORM KEYS" Click="MenuOpenApp_Click">
-                        <MenuFlyoutItem.Icon>
-                            <FontIcon Glyph="&#xE8A7;" />
-                        </MenuFlyoutItem.Icon>
-                    </MenuFlyoutItem>
-                    <MenuFlyoutItem x:Name="MenuLockApp" Text="Заблокировать хранилище" Click="MenuLockApp_Click">
-                        <MenuFlyoutItem.Icon>
-                            <FontIcon Glyph="&#xE72E;" />
-                        </MenuFlyoutItem.Icon>
-                    </MenuFlyoutItem>
+                    <MenuFlyoutItem x:Name="MenuOpenApp" Text="Развернуть STORM KEYS" Click="MenuOpenApp_Click" />
+                    <MenuFlyoutItem x:Name="MenuLockApp" Text="Заблокировать хранилище" Click="MenuLockApp_Click" />
                     <MenuFlyoutSeparator />
-                    <MenuFlyoutItem x:Name="MenuExitApp" Text="Выход" Click="MenuExitApp_Click">
-                        <MenuFlyoutItem.Icon>
-                            <FontIcon Glyph="&#xE7E8;" />
-                        </MenuFlyoutItem.Icon>
-                    </MenuFlyoutItem>
+                    <MenuFlyoutItem x:Name="MenuExitApp" Text="Выход" Click="MenuExitApp_Click" />
                 </MenuFlyout>
             </tb:TaskbarIcon.ContextFlyout>
         </tb:TaskbarIcon>
