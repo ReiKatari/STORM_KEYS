@@ -11,7 +11,7 @@
     <PublishProfile Condition="Exists('Properties\PublishProfiles\win-$(Platform).pubxml')">win-$(Platform).pubxml</PublishProfile>
     <UseWinUI>true</UseWinUI>
     <WinUISDKReferences>false</WinUISDKReferences>
-    <EnableMsixTooling>false</EnableMsixTooling>
+    <EnableMsixTooling>true</EnableMsixTooling>
     <WindowsPackageType>None</WindowsPackageType>
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -78,4 +78,12 @@
     <PublishTrimmed Condition="'$(Configuration)' == 'Debug'">False</PublishTrimmed>
     <PublishTrimmed Condition="'$(Configuration)' != 'Debug'">False</PublishTrimmed>
   </PropertyGroup>
+  <!-- PRI copying for unpackaged WinUI 3 standalone execution -->
+  <Target Name="CopyPriToPublish" AfterTargets="Publish">
+    <Copy SourceFiles="$(TargetDir)StormKeys.pri" DestinationFiles="$(PublishDir)resources.pri" Condition="Exists('$(TargetDir)StormKeys.pri')" />
+    <Copy SourceFiles="$(TargetDir)StormKeys.pri" DestinationFiles="$(PublishDir)StormKeys.pri" Condition="Exists('$(TargetDir)StormKeys.pri')" />
+  </Target>
+  <Target Name="CopyPriToOutput" AfterTargets="Build">
+    <Copy SourceFiles="$(TargetDir)StormKeys.pri" DestinationFiles="$(TargetDir)resources.pri" Condition="Exists('$(TargetDir)StormKeys.pri')" />
+  </Target>
 </Project>
