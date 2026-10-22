@@ -24,6 +24,7 @@ public interface IImportExportService
     ImportResult ImportFromClipboardText(string text);
     Task ExportToCsvAsync(IEnumerable<KeyEntry> entries, string filePath);
     Task ExportToJsonAsync(IEnumerable<KeyEntry> entries, string filePath);
+    Task ExportEmergencyRecoveryKitAsync(IEnumerable<KeyEntry> entries, string filePath);
 }
 
 public class ImportExportService : IImportExportService
@@ -357,6 +358,49 @@ public class ImportExportService : IImportExportService
         {
             string line = $"{EscapeCsv(e.Title)},{EscapeCsv(e.Category.ToString())},{EscapeCsv(e.UsernameOrEmail)},{EscapeCsv(e.SecretValue)},{EscapeCsv(e.TargetAppOrUrl)},{EscapeCsv(e.ExpirationDate?.ToString("yyyy-MM-dd") ?? "")},{EscapeCsv(e.Notes)}";
             sb.AppendLine(line);
+        }
+
+        await File.WriteAllTextAsync(filePath, sb.ToString(), Encoding.UTF8);
+    }
+
+
+    public async Task ExportEmergencyRecoveryKitAsync(IEnumerable<KeyEntry> entries, string filePath)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("=========================================================================");
+        sb.AppendLine("              STORM KEYS — АВАРИЙНЫЙ ЛИСТ ВОССТАНОВЛЕНИЯ                 ");
+        sb.AppendLine("=========================================================================");
+        sb.AppendLine($"Дата генерации (UTC): {DateTimeOffset.UtcNow:yyyy-MM-dd HH:mm:ss}");
+        sb.AppendLine($"Устройство:           {Environment.MachineName}");
+        sb.AppendLine("Шифрование контейнера: AES-256-GCM + Argon2id KDF");
+        sb.AppendLine("ВНИМАНИЕ: Храните этот документ в сейфе или на защищенном офлайн-носителе!");
+        sb.AppendLine("-------------------------------------------------------------------------");
+        sb.AppendLine();
+
+        int idx = 1;
+        foreach (var e in entries)
+        {
+            sb.AppendLine($"[{idx++:D3}] {e.Title} ({e.CategoryDisplayName})");
+            if (!string.IsNullOrWhiteSpace(e.UsernameOrEmail))
+                sb.AppendLine($"      Логин / Email:  {e.UsernameOrEmail}");
+            if (!string.IsNullOrWhiteSpace(e.SecretValue))
+                sb.AppendLine($"      Пароль / Ключ:  {e.SecretValue}");
+            if (!string.IsNullOrWhiteSpace(e.TotpSecret))
+                sb.AppendLine($"      Секрет 2FA:     {e.TotpSecret}");
+            if (!string.IsNullOrWhiteSpace(e.TargetAppOrUrl))
+                sb.AppendLine($"      Сервис / URL:   {e.TargetAppOrUrl}");
+            if (e.ExpirationDate.HasValue)
+                sb.AppendLine($"      Срок действия:  {e.ExpirationDate.Value:yyyy-MM-dd}");
+            if (e.Tags != null && e.Tags.Count > 0)
+                sb.AppendLine($"      Теги:           {e.TagsDisplayText}");
+            if (e.CustomFields != null && e.CustomFields.Count > 0)
+            {
+                foreach (var kv in e.CustomFields)
+                    sb.AppendLine($"      Поле [{kv.Key}]: {kv.Value}");
+            }
+            if (!string.IsNullOrWhiteSpace(e.Notes))
+                sb.AppendLine($"      Заметки:        {e.Notes.Replace("\r\n", " ").Replace("\n", " ")}");
+            sb.AppendLine("-------------------------------------------------------------------------");
         }
 
         await File.WriteAllTextAsync(filePath, sb.ToString(), Encoding.UTF8);

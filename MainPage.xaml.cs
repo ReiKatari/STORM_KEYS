@@ -45,6 +45,15 @@ public sealed partial class MainPage : Page
         "Активные / Бессрочные"
     };
 
+    public List<string> SortOrderOptions { get; } = new()
+    {
+        "По приоритету срока",
+        "По алфавиту (А–Я)",
+        "Сначала новые",
+        "По надёжности",
+        "По категории"
+    };
+
     public List<string> CategoryEditOptions { get; } = new()
     {
         "Учетная запись (Логин/Пароль)",
@@ -131,6 +140,36 @@ public sealed partial class MainPage : Page
             if (!ViewModel.IsVaultLocked)
             {
                 _ = ViewModel.LockVaultCommand.ExecuteAsync(null);
+                e.Handled = true;
+                return;
+            }
+        }
+
+        if (isCtrlDown && e.Key == Windows.System.VirtualKey.D)
+        {
+            if (!ViewModel.IsVaultLocked && ViewModel.SelectedEntry != null)
+            {
+                _ = ViewModel.DuplicateEntryCommand.ExecuteAsync(ViewModel.SelectedEntry);
+                e.Handled = true;
+                return;
+            }
+        }
+
+        if (isCtrlDown && e.Key == Windows.System.VirtualKey.Z)
+        {
+            if (!ViewModel.IsVaultLocked && ViewModel.CanUndoDelete)
+            {
+                _ = ViewModel.UndoDeleteCommand.ExecuteAsync(null);
+                e.Handled = true;
+                return;
+            }
+        }
+
+        if (e.Key == Windows.System.VirtualKey.F5)
+        {
+            if (!ViewModel.IsVaultLocked)
+            {
+                ViewModel.RefreshFilteredList();
                 e.Handled = true;
                 return;
             }
@@ -229,6 +268,58 @@ public sealed partial class MainPage : Page
         if (sender is Button btn && btn.Tag is KeyEntry entry)
         {
             ViewModel.CopyTotpCode(entry);
+        }
+    }
+
+    private void PeekSecret_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is KeyEntry entry)
+        {
+            ViewModel.PeekSecret(entry);
+        }
+    }
+
+    private void DuplicateEntry_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is KeyEntry entry)
+        {
+            _ = ViewModel.DuplicateEntryCommand.ExecuteAsync(entry);
+        }
+    }
+
+    private void CopySummary_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is KeyEntry entry)
+        {
+            ViewModel.CopyFullSummary(entry);
+        }
+    }
+
+    private async void ExportRecoveryKit_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var picker = new FileSavePicker();
+            if (MainWindow.Instance != null)
+            {
+                var hwnd = WindowNative.GetWindowHandle(MainWindow.Instance);
+                InitializeWithWindow.Initialize(picker, hwnd);
+            }
+
+            picker.SuggestedStartLocation = PickerLocationId.DocumentsLibrary;
+            picker.FileTypeChoices.Add("Текстовый документ", new List<string> { ".txt" });
+            picker.SuggestedFileName = $"STORM_KEYS_Recovery_Kit_{DateTime.Now:yyyyMMdd}";
+
+            var file = await picker.PickSaveFileAsync();
+            if (file != null)
+            {
+                await App.ImportExportService.ExportEmergencyRecoveryKitAsync(ViewModel.FilteredEntries, file.Path);
+                ViewModel.StatusMessage = $"Аварийный лист восстановления сохранён: {file.Name}";
+            }
+        }
+        catch (Exception ex)
+        {
+            ViewModel.StatusMessage = $"Ошибка сохранения аварийного листа: {ex.Message}";
         }
     }
 

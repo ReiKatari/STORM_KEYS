@@ -24,6 +24,7 @@ public interface IVaultService
     Task<bool> SyncWithCloudAsync();
     Task SaveSettingsAsync();
     void DetectCommonCloudFolders();
+    Task<string> CreateBackupSnapshotAsync();
 }
 
 public class VaultService : IVaultService
@@ -199,6 +200,13 @@ public class VaultService : IVaultService
         {
             try
             {
+                // Ротация 3 поколений резервных копий (.bak1, .bak2, .bak3)
+                string bak1 = targetPath + ".bak1";
+                string bak2 = targetPath + ".bak2";
+                string bak3 = targetPath + ".bak3";
+                if (File.Exists(bak2)) File.Copy(bak2, bak3, overwrite: true);
+                if (File.Exists(bak1)) File.Copy(bak1, bak2, overwrite: true);
+                File.Copy(targetPath, bak1, overwrite: true);
                 File.Copy(targetPath, backupPath, overwrite: true);
             }
             catch { }
@@ -308,5 +316,17 @@ public class VaultService : IVaultService
         {
             return false;
         }
+    }
+
+    public async Task<string> CreateBackupSnapshotAsync()
+    {
+        if (!File.Exists(LocalVaultPath))
+            await SaveVaultAsync();
+
+        string dir = Path.GetDirectoryName(LocalVaultPath) ?? GetAppDataDir();
+        string stamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+        string snapshotPath = Path.Combine(dir, $"vault_snapshot_{stamp}.stormdb.bak");
+        File.Copy(LocalVaultPath, snapshotPath, overwrite: true);
+        return snapshotPath;
     }
 }

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json.Serialization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.UI.Xaml;
@@ -39,11 +40,35 @@ public partial class KeyEntry : ObservableObject
             if (SetProperty(ref _secretValue, value))
             {
                 OnPropertyChanged(nameof(MaskedSecret));
+                OnPropertyChanged(nameof(DisplayedSecret));
                 OnPropertyChanged(nameof(PasswordStrengthLabel));
                 OnPropertyChanged(nameof(PasswordStrengthColor));
+                OnPropertyChanged(nameof(EntropyBits));
+                OnPropertyChanged(nameof(CrackTimeText));
             }
         }
     }
+
+    private bool _isSecretRevealed;
+    [JsonIgnore]
+    public bool IsSecretRevealed
+    {
+        get => _isSecretRevealed;
+        set
+        {
+            if (SetProperty(ref _isSecretRevealed, value))
+            {
+                OnPropertyChanged(nameof(DisplayedSecret));
+                OnPropertyChanged(nameof(PeekGlyph));
+            }
+        }
+    }
+
+    [JsonIgnore]
+    public string DisplayedSecret => IsSecretRevealed ? SecretValue : MaskedSecret;
+
+    [JsonIgnore]
+    public string PeekGlyph => IsSecretRevealed ? "" : "";
 
     private string _targetAppOrUrl = string.Empty;
     public string TargetAppOrUrl
@@ -61,15 +86,45 @@ public partial class KeyEntry : ObservableObject
 
     public DateTimeOffset? ExpirationDate { get; set; }
     public string Notes { get; set; } = string.Empty;
-    public List<string> Tags { get; set; } = new();
+
+    private List<string> _tags = new();
+    public List<string> Tags
+    {
+        get => _tags;
+        set
+        {
+            if (SetProperty(ref _tags, value ?? new()))
+            {
+                OnPropertyChanged(nameof(TagsDisplayText));
+                OnPropertyChanged(nameof(TagsVisibility));
+            }
+        }
+    }
+
+    [JsonIgnore]
+    public string TagsDisplayText => (Tags != null && Tags.Count > 0)
+        ? string.Join(" ", Tags.Where(t => !string.IsNullOrWhiteSpace(t)).Select(t => "#" + t.Trim().TrimStart('#')))
+        : string.Empty;
+
+    [JsonIgnore]
+    public Visibility TagsVisibility => !string.IsNullOrWhiteSpace(TagsDisplayText) ? Visibility.Visible : Visibility.Collapsed;
 
     // Избранное / Закреплено вверху
     private bool _isFavorite;
     public bool IsFavorite
     {
         get => _isFavorite;
-        set => SetProperty(ref _isFavorite, value);
+        set
+        {
+            if (SetProperty(ref _isFavorite, value))
+            {
+                OnPropertyChanged(nameof(FavoriteGlyph));
+            }
+        }
     }
+
+    [JsonIgnore]
+    public string FavoriteGlyph => IsFavorite ? "" : "";
 
     // Выбор для массовых операций
     private bool _isSelected;
@@ -141,7 +196,7 @@ public partial class KeyEntry : ObservableObject
     [JsonIgnore]
     public string TotpTimerColor => TotpSecondsRemaining switch
     {
-        <= 5 => "#D13438", // Красный
+        <= 5 => "#D13438",  // Красный
         <= 10 => "#FF8C00", // Оранжевый
         _ => "#107C41"      // Зелёный
     };
@@ -181,13 +236,13 @@ public partial class KeyEntry : ObservableObject
     public Visibility PwnedSafeVisibility => (PwnedBreachCount == 0 && PwnedLastCheckedAt.HasValue) ? Visibility.Visible : Visibility.Collapsed;
 
     [JsonIgnore]
-    public string PwnedStatusText => PwnedBreachCount < 0 
-        ? "Не проверялся" 
+    public string PwnedStatusText => PwnedBreachCount < 0
+        ? "Не проверялся"
         : (PwnedBreachCount == 0 ? "0 утечек (Безопасен)" : $"Утечка: {PwnedBreachCount:N0} раз!");
 
     [JsonIgnore]
-    public string PwnedStatusColor => PwnedBreachCount < 0 
-        ? "#888888" 
+    public string PwnedStatusColor => PwnedBreachCount < 0
+        ? "#888888"
         : (PwnedBreachCount == 0 ? "#107C41" : "#D13438");
 
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
@@ -275,17 +330,17 @@ public partial class KeyEntry : ObservableObject
     [JsonIgnore]
     public string CategoryGlyph => Category switch
     {
-        KeyCategory.Account => "\uE77B",     // Contact / Person
-        KeyCategory.License => "\uE8A7",     // Certificate / Ribbon
-        KeyCategory.ApiKey => "\uE8D7",      // Code / Key
-        KeyCategory.Certificate => "\uE72E", // Lock / Shield
-        KeyCategory.Server => "\uEDA2",      // Cloud / Server
-        _ => "\uE8B7"                        // Tag / Other
+        KeyCategory.Account => "",     // Contact / Person
+        KeyCategory.License => "",     // Certificate / Ribbon
+        KeyCategory.ApiKey => "",      // Code / Key
+        KeyCategory.Certificate => "", // Lock / Shield
+        KeyCategory.Server => "",      // Cloud / Server
+        _ => ""                        // Tag / Other
     };
 
     [JsonIgnore]
-    public string MaskedSecret => string.IsNullOrEmpty(SecretValue) 
-        ? string.Empty 
+    public string MaskedSecret => string.IsNullOrEmpty(SecretValue)
+        ? string.Empty
         : new string('•', Math.Min(SecretValue.Length, 12));
 
     [JsonIgnore]
@@ -324,5 +379,32 @@ public partial class KeyEntry : ObservableObject
             var eval = PasswordGenerator.EvaluateStrength(SecretValue);
             return eval.ColorHex;
         }
+    }
+
+    [JsonIgnore]
+    public double EntropyBits => PasswordGenerator.CalculateEntropyBits(SecretValue);
+
+    [JsonIgnore]
+    public string CrackTimeText => PasswordGenerator.EstimateCrackTime(SecretValue);
+
+    public KeyEntry Clone()
+    {
+        return new KeyEntry
+        {
+            Id = Guid.NewGuid(),
+            Title = $"{Title} (Копия)",
+            Category = Category,
+            UsernameOrEmail = UsernameOrEmail,
+            SecretValue = SecretValue,
+            TargetAppOrUrl = TargetAppOrUrl,
+            ExpirationDate = ExpirationDate,
+            Notes = Notes,
+            TotpSecret = TotpSecret,
+            IsFavorite = IsFavorite,
+            Tags = new List<string>(Tags ?? new()),
+            CustomFields = new Dictionary<string, string>(CustomFields ?? new()),
+            CreatedAt = DateTimeOffset.UtcNow,
+            ModifiedAt = DateTimeOffset.UtcNow
+        };
     }
 }

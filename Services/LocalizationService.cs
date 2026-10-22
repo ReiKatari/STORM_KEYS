@@ -109,7 +109,7 @@ public static class LocalizationService
             ["TooltipGenSoftwareKey"] = "Сгенерировать формат ключа ПО (XXXXX-XXXXX...)",
             ["AboutTitle"] = "О программе STORM KEYS",
             ["AboutPublisher"] = "Проверенный издатель: STORM TEAM",
-            ["AboutVersion"] = "Версия 1.0.2",
+            ["AboutVersion"] = "Версия 1.0.3",
             ["AboutCert"] = "Сертификат: STORM INTEGRATED PLATFORM",
             ["AboutDesc"] = "Защищённое хранилище цифровых ключей, паролей и лицензий с шифрованием AES-256-GCM и деривацией Argon2id.",
             ["AboutClose"] = "Закрыть"
@@ -193,7 +193,7 @@ public static class LocalizationService
             ["TooltipGenSoftwareKey"] = "Generate software license key format (XXXXX-XXXXX...)",
             ["AboutTitle"] = "About STORM KEYS",
             ["AboutPublisher"] = "Verified Publisher: STORM TEAM",
-            ["AboutVersion"] = "Version 1.0.2",
+            ["AboutVersion"] = "Version 1.0.3",
             ["AboutCert"] = "Certificate: STORM INTEGRATED PLATFORM",
             ["AboutDesc"] = "Secure digital vault for keys, passwords and licenses with AES-256-GCM encryption and Argon2id KDF.",
             ["AboutClose"] = "Close"
@@ -277,7 +277,7 @@ public static class LocalizationService
             ["TooltipGenSoftwareKey"] = "Software-Lizenzschlüsselformat generieren (XXXXX-XXXXX...)",
             ["AboutTitle"] = "Über STORM KEYS",
             ["AboutPublisher"] = "Verifizierter Herausgeber: STORM TEAM",
-            ["AboutVersion"] = "Version 1.0.2",
+            ["AboutVersion"] = "Version 1.0.3",
             ["AboutCert"] = "Zertifikat: STORM INTEGRATED PLATFORM",
             ["AboutDesc"] = "Sicherer digitaler Tresor für Schlüssel, Passwörter und Lizenzen mit AES-256-GCM-Verschlüsselung und Argon2id KDF.",
             ["AboutClose"] = "Schließen"
@@ -361,7 +361,7 @@ public static class LocalizationService
             ["TooltipGenSoftwareKey"] = "Générer un format de clé de licence (XXXXX-XXXXX...)",
             ["AboutTitle"] = "À propos de STORM KEYS",
             ["AboutPublisher"] = "Éditeur vérifié : STORM TEAM",
-            ["AboutVersion"] = "Version 1.0.2",
+            ["AboutVersion"] = "Version 1.0.3",
             ["AboutCert"] = "Certificat : STORM INTEGRATED PLATFORM",
             ["AboutDesc"] = "Coffre-fort numérique sécurisé pour clés, mots de passe et licences avec chiffrement AES-256-GCM et dérivation Argon2id.",
             ["AboutClose"] = "Fermer"
@@ -445,7 +445,7 @@ public static class LocalizationService
             ["TooltipGenSoftwareKey"] = "生成软件许可证格式 (XXXXX-XXXXX...)",
             ["AboutTitle"] = "关于 STORM KEYS",
             ["AboutPublisher"] = "已验证发布者：STORM TEAM",
-            ["AboutVersion"] = "版本 1.0.2",
+            ["AboutVersion"] = "版本 1.0.3",
             ["AboutCert"] = "证书：STORM INTEGRATED PLATFORM",
             ["AboutDesc"] = "安全数字密钥、密码和许可证保管库，采用 AES-256-GCM 加密和 Argon2id 密钥派生。",
             ["AboutClose"] = "关闭"
@@ -529,7 +529,7 @@ public static class LocalizationService
             ["TooltipGenSoftwareKey"] = "소프트웨어 라이선스 키 형식 생성 (XXXXX-XXXXX...)",
             ["AboutTitle"] = "STORM KEYS 정보",
             ["AboutPublisher"] = "확인된 게시자: STORM TEAM",
-            ["AboutVersion"] = "버전 1.0.2",
+            ["AboutVersion"] = "버전 1.0.3",
             ["AboutCert"] = "인증서: STORM INTEGRATED PLATFORM",
             ["AboutDesc"] = "AES-256-GCM 암호화 및 Argon2id KDF가 적용된 디지털 키, 비밀번호 및 라이선스 보안 보관함.",
             ["AboutClose"] = "닫기"
@@ -613,7 +613,7 @@ public static class LocalizationService
             ["TooltipGenSoftwareKey"] = "ソフトウェアライセンス形式を生成 (XXXXX-XXXXX...)",
             ["AboutTitle"] = "STORM KEYS について",
             ["AboutPublisher"] = "検証済み発行元: STORM TEAM",
-            ["AboutVersion"] = "バージョン 1.0.2",
+            ["AboutVersion"] = "バージョン 1.0.3",
             ["AboutCert"] = "証明書: STORM INTEGRATED PLATFORM",
             ["AboutDesc"] = "AES-256-GCM暗号化とArgon2id KDFを備えた、デジタルキー、パスワード、ライセンスの安全な保管庫。",
             ["AboutClose"] = "閉じる"
@@ -697,7 +697,7 @@ public static class LocalizationService
             ["TooltipGenSoftwareKey"] = "Generar formato de clave de licencia (XXXXX-XXXXX...)",
             ["AboutTitle"] = "Acerca de STORM KEYS",
             ["AboutPublisher"] = "Editor verificado: STORM TEAM",
-            ["AboutVersion"] = "Versión 1.0.2",
+            ["AboutVersion"] = "Versión 1.0.3",
             ["AboutCert"] = "Certificado: STORM INTEGRATED PLATFORM",
             ["AboutDesc"] = "Bóveda digital segura para claves, contraseñas y licencias con cifrado AES-256-GCM y derivación Argon2id.",
             ["AboutClose"] = "Cerrar"
@@ -781,7 +781,7 @@ public static class LocalizationService
             ["TooltipGenSoftwareKey"] = "Genera formato chiave di licenza (XXXXX-XXXXX...)",
             ["AboutTitle"] = "Informazioni su STORM KEYS",
             ["AboutPublisher"] = "Editore verificato: STORM TEAM",
-            ["AboutVersion"] = "Versione 1.0.2",
+            ["AboutVersion"] = "Versione 1.0.3",
             ["AboutCert"] = "Certificato: STORM INTEGRATED PLATFORM",
             ["AboutDesc"] = "Cassaforte digitale sicura per chiavi, password e licenze con crittografia AES-256-GCM e derivazione Argon2id.",
             ["AboutClose"] = "Chiudi"
@@ -865,7 +865,7 @@ public static class LocalizationService
             ["TooltipGenSoftwareKey"] = "Gerar formato de chave de licença (XXXXX-XXXXX...)",
             ["AboutTitle"] = "Sobre o STORM KEYS",
             ["AboutPublisher"] = "Editor verificado: STORM TEAM",
-            ["AboutVersion"] = "Versão 1.0.2",
+            ["AboutVersion"] = "Versão 1.0.3",
             ["AboutCert"] = "Certificado: STORM INTEGRATED PLATFORM",
             ["AboutDesc"] = "Cofre digital seguro para chaves, senhas e licenças com criptografia AES-256-GCM e derivação Argon2id.",
             ["AboutClose"] = "Fechar"
@@ -949,7 +949,7 @@ public static class LocalizationService
             ["TooltipGenSoftwareKey"] = "सॉफ़्टवेयर लाइसेंस कुंजी प्रारूप जनरेट करें (XXXXX-XXXXX...)",
             ["AboutTitle"] = "STORM KEYS के बारे में",
             ["AboutPublisher"] = "सत्यापित प्रकाशक: STORM TEAM",
-            ["AboutVersion"] = "संस्करण 1.0.2",
+            ["AboutVersion"] = "संस्करण 1.0.3",
             ["AboutCert"] = "प्रमाणपत्र: STORM INTEGRATED PLATFORM",
             ["AboutDesc"] = "AES-256-GCM एन्क्रिप्शन और Argon2id KDF के साथ कुंजियों, पासवर्ड और लाइसेंस के लिए सुरक्षित डिजिटल वॉल्ट।",
             ["AboutClose"] = "बंद करें"

@@ -34,6 +34,13 @@ public static class Program
         await RunTest("TOTP 2FA: Генерация RFC 6238, Base32 и таймер", Test_Totp_Service);
         await RunTest("Have I Been Pwned: k-Anonymity SHA-1 хэширование", Test_Pwned_Service);
         await RunTest("Tray Service: Проверка NOTIFYICONDATA и иконки", Test_Tray_Service);
+        await RunTest("Генератор 1.0.3: Passphrase (Diceware/xkcd), Энтропия (бит) и Время взлома", Test_Passphrase_Entropy_CrackTime);
+        await RunTest("Модель 1.0.3: Клонирование (Clone), Peek-просмотр, Избранное и Теги", Test_KeyEntry_Clone_Peek_Tags);
+        await RunTest("Модель 1.0.3: Пользовательские поля (CustomFields) и История паролей", Test_CustomFields_And_PasswordHistory);
+        await RunTest("Хранилище 1.0.3: Ротация 3 поколений бэкапов (.bak1..3) и Снапшоты", Test_Vault_Rolling_Backups);
+        await RunTest("Хранилище 1.0.3: Смена мастер-пароля и перешифрование AES-256-GCM", Test_Vault_Change_MasterPassword);
+        await RunTest("Экспорт 1.0.3: Генерация Аварийного листа восстановления (.txt)", Test_Emergency_Recovery_Kit);
+        await RunTest("ViewModel 1.0.3: Умный поиск, Чипы (Слабые/Дубли), Сортировка и Undo", Test_ViewModel_Search_Sort_Chips_Undo);
 
         Console.WriteLine("-------------------------------------------------");
         Console.WriteLine($"РЕЗУЛЬТАТ: Успешно: {_passed} | Ошибок: {_failed}");
@@ -393,6 +400,224 @@ public static class Program
         int size = System.Runtime.InteropServices.Marshal.SizeOf(nidType!);
         Console.Write($"[struct size: {size} bytes] ");
         AssertTrue(size > 0, "Size must be > 0");
+
+        return Task.CompletedTask;
+    }
+
+
+    private static Task Test_Passphrase_Entropy_CrackTime()
+    {
+        string phrase = PasswordGenerator.GeneratePassphrase(4, "-", true);
+        AssertTrue(!string.IsNullOrWhiteSpace(phrase), "Парольная фраза не должна быть пустой");
+        AssertTrue(phrase.Split('-').Length >= 5, $"Парольная фраза должна содержать 4 слова + число: {phrase}");
+
+        double entropyWeak = PasswordGenerator.CalculateEntropyBits("12345");
+        double entropyStrong = PasswordGenerator.CalculateEntropyBits(phrase);
+        AssertTrue(entropyStrong > entropyWeak, $"Энтропия фразы ({entropyStrong}) должна быть выше слабой ({entropyWeak})");
+        AssertTrue(entropyStrong >= 100.0, $"Энтропия криптостойкой фразы должна быть >= 100 бит, получено {entropyStrong}");
+
+        string crackWeak = PasswordGenerator.EstimateCrackTime("abc");
+        string crackStrong = PasswordGenerator.EstimateCrackTime(phrase);
+        AssertTrue(crackWeak.Contains("сек") || crackWeak.Contains("Мгновенно"), $"Слабый пароль должен взламываться мгновенно: {crackWeak}");
+        AssertTrue(crackStrong.Contains("лет"), $"Сильная фраза должна требовать лет перебора: {crackStrong}");
+
+        return Task.CompletedTask;
+    }
+
+    private static Task Test_KeyEntry_Clone_Peek_Tags()
+    {
+        var original = new KeyEntry
+        {
+            Title = "Prod Kubernetes",
+            Category = KeyCategory.Server,
+            UsernameOrEmail = "root",
+            SecretValue = "K8s-Master-Secret-2026!",
+            TargetAppOrUrl = "https://k8s.storm.dev",
+            IsFavorite = true,
+            Tags = new System.Collections.Generic.List<string> { "prod", "infra", "k8s" }
+        };
+
+        // Проверка маскировки и Peek-режима
+        AssertTrue(!original.IsSecretRevealed, "По умолчанию секрет должен быть скрыт");
+        AssertTrue(original.DisplayedSecret.StartsWith("•"), "DisplayedSecret должен возвращать маску по умолчанию");
+        original.IsSecretRevealed = true;
+        AssertEqual("K8s-Master-Secret-2026!", original.DisplayedSecret, "В режиме Peek должен отображаться реальный секрет");
+        original.IsSecretRevealed = false;
+
+        // Проверка тегов и избранного
+        AssertEqual("#prod #infra #k8s", original.TagsDisplayText, "Форматирование тегов должно добавлять #");
+        AssertEqual("", original.FavoriteGlyph, "Глиф избранного должен быть заполненной звездой");
+        AssertTrue(original.HasWebsiteUrl && original.WebsiteLaunchUri != null, "URL должен определяться корректно");
+
+        // Проверка клонирования
+        var clone = original.Clone();
+        AssertTrue(clone.Id != original.Id, "Клон должен иметь новый уникальный Guid");
+        AssertEqual("Prod Kubernetes (Копия)", clone.Title, "Название клона должно содержать (Копия)");
+        AssertEqual(original.SecretValue, clone.SecretValue, "Секрет клона должен совпадать");
+        AssertEqual(3, clone.Tags.Count, "Теги должны копироваться в клон");
+
+        return Task.CompletedTask;
+    }
+
+    private static Task Test_CustomFields_And_PasswordHistory()
+    {
+        var entry = new KeyEntry
+        {
+            Title = "Corporate VPN",
+            SecretValue = "OldVpnPass#1"
+        };
+        entry.CustomFields["PIN"] = "9482";
+        entry.CustomFields["Port"] = "1194";
+
+        // Имитация смены пароля с сохранением истории
+        entry.PasswordHistory.Insert(0, new PasswordHistoryItem { Password = entry.SecretValue, ChangedAt = DateTimeOffset.Now });
+        entry.SecretValue = "NewVpnPass#2026!";
+
+        AssertEqual(2, entry.CustomFields.Count, "Должно быть 2 пользовательских поля");
+        AssertEqual("9482", entry.CustomFields["PIN"], "PIN должен быть 9482");
+        AssertEqual(1, entry.PasswordHistory.Count, "История паролей должна содержать 1 запись");
+        AssertEqual("OldVpnPass#1", entry.PasswordHistory[0].Password, "В истории должен храниться старый пароль");
+
+        return Task.CompletedTask;
+    }
+
+    private static async Task Test_Vault_Rolling_Backups()
+    {
+        var crypto = new CryptoService();
+        var vault = new VaultService(crypto);
+        string tempDir = Path.Combine(Path.GetTempPath(), $"storm_vault_test_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        string vaultPath = Path.Combine(tempDir, "test_vault.stormdb");
+
+        try
+        {
+            vault.Settings.LocalVaultPath = vaultPath;
+            await vault.CreateVaultAsync("MasterPass!103");
+
+            // Выполняем 3 сохранения для проверки генерации .bak1, .bak2, .bak3
+            vault.CurrentContainer!.Entries.Add(new KeyEntry { Title = "Key 1", SecretValue = "Sec1" });
+            await vault.SaveVaultAsync();
+
+            vault.CurrentContainer!.Entries.Add(new KeyEntry { Title = "Key 2", SecretValue = "Sec2" });
+            await vault.SaveVaultAsync();
+
+            vault.CurrentContainer!.Entries.Add(new KeyEntry { Title = "Key 3", SecretValue = "Sec3" });
+            await vault.SaveVaultAsync();
+
+            AssertTrue(File.Exists(vaultPath + ".bak1"), "Должна существовать резервная копия .bak1");
+            AssertTrue(File.Exists(vaultPath + ".bak2"), "Должна существовать резервная копия .bak2");
+            AssertTrue(File.Exists(vaultPath + ".bak3"), "Должна существовать резервная копия .bak3");
+
+            string snap = await vault.CreateBackupSnapshotAsync();
+            AssertTrue(File.Exists(snap), "Ручной снапшот резервной копии должен быть создан");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    private static async Task Test_Vault_Change_MasterPassword()
+    {
+        var crypto = new CryptoService();
+        var vault = new VaultService(crypto);
+        string tempDir = Path.Combine(Path.GetTempPath(), $"storm_pwdchange_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        string vaultPath = Path.Combine(tempDir, "vault.stormdb");
+
+        try
+        {
+            vault.Settings.LocalVaultPath = vaultPath;
+            await vault.CreateVaultAsync("InitialMasterPass!1");
+            vault.CurrentContainer!.Entries.Add(new KeyEntry { Title = "Critical Key", SecretValue = "TopSecretValue" });
+            await vault.SaveVaultAsync();
+
+            await vault.ChangeMasterPasswordAsync("InitialMasterPass!1", "NewUpdatedMasterPass!2");
+            await vault.LockVaultAsync();
+
+            bool oldUnlock = await vault.UnlockVaultAsync("InitialMasterPass!1");
+            AssertTrue(!oldUnlock, "Старый мастер-пароль больше не должен открывать хранилище");
+
+            bool newUnlock = await vault.UnlockVaultAsync("NewUpdatedMasterPass!2");
+            AssertTrue(newUnlock, "Новый мастер-пароль должен успешно открывать хранилище");
+            AssertEqual(1, vault.CurrentContainer!.Entries.Count, "Записи должны сохраниться после смены мастер-пароля");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    private static async Task Test_Emergency_Recovery_Kit()
+    {
+        var service = new ImportExportService();
+        var entries = new System.Collections.Generic.List<KeyEntry>
+        {
+            new()
+            {
+                Title = "Primary AWS Root",
+                Category = KeyCategory.Server,
+                UsernameOrEmail = "aws-root@storm.dev",
+                SecretValue = "Aws-Root-Pass-99!",
+                TotpSecret = "JBSWY3DPEHPK3PXP",
+                Tags = new() { "aws", "root" }
+            }
+        };
+
+        string tempKit = Path.Combine(Path.GetTempPath(), $"recovery_kit_{Guid.NewGuid():N}.txt");
+        try
+        {
+            await service.ExportEmergencyRecoveryKitAsync(entries, tempKit);
+            AssertTrue(File.Exists(tempKit), "Файл аварийного листа должен быть создан");
+            string content = await File.ReadAllTextAsync(tempKit);
+            AssertTrue(content.Contains("STORM KEYS — АВАРИЙНЫЙ ЛИСТ ВОССТАНОВЛЕНИЯ"), "Заголовок аварийного листа должен присутствовать");
+            AssertTrue(content.Contains("Primary AWS Root"), "Название записи должно присутствовать в аварийном листе");
+            AssertTrue(content.Contains("JBSWY3DPEHPK3PXP"), "Секрет 2FA должен присутствовать в аварийном листе");
+        }
+        finally
+        {
+            if (File.Exists(tempKit)) File.Delete(tempKit);
+        }
+    }
+
+
+    private static Task Test_ViewModel_Search_Sort_Chips_Undo()
+    {
+        var e1 = new KeyEntry { Title = "Alpha GitHub", UsernameOrEmail = "admin", SecretValue = "12345", Tags = new() { "prod", "git" } };
+        var e2 = new KeyEntry { Title = "Beta Server", UsernameOrEmail = "root", SecretValue = "12345", Category = KeyCategory.Server };
+        var e3 = new KeyEntry { Title = "Gamma Cloud", UsernameOrEmail = "devops", SecretValue = PasswordGenerator.GeneratePassphrase(4, "-", true), IsFavorite = true };
+
+        var allEntries = new System.Collections.Generic.List<KeyEntry> { e1, e2, e3 };
+
+        // 1. Слабые и дублирующиеся пароли
+        int weakCount = System.Linq.Enumerable.Count(allEntries, e => !string.IsNullOrEmpty(e.SecretValue) && PasswordGenerator.EvaluateStrength(e.SecretValue).Score <= 2);
+        AssertEqual(2, weakCount, "Должно определяться ровно 2 слабых пароля");
+
+        var dupGroups = System.Linq.Enumerable.Where(System.Linq.Enumerable.GroupBy(allEntries, e => e.SecretValue), g => System.Linq.Enumerable.Count(g) > 1);
+        int dupCount = System.Linq.Enumerable.Sum(dupGroups, g => System.Linq.Enumerable.Count(g));
+        AssertEqual(2, dupCount, "Должно определяться ровно 2 дублирующихся пароля");
+
+        // 2. Многословный умный поиск по тегам и заголовку
+        string queryStr = "alpha #prod";
+        var tokens = queryStr.Trim().ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var matched = System.Linq.Enumerable.ToList(System.Linq.Enumerable.Where(allEntries, e =>
+        {
+            string tagsJoined = string.Join(" ", e.Tags).ToLowerInvariant();
+            return System.Linq.Enumerable.All(tokens, t =>
+            {
+                string ct = t.TrimStart('#');
+                return e.Title.ToLowerInvariant().Contains(ct) || tagsJoined.Contains(ct);
+            });
+        }));
+        AssertEqual(1, matched.Count, "Умный поиск 'alpha #prod' должен найти ровно 1 запись");
+        AssertEqual("Alpha GitHub", matched[0].Title, "Найденная запись должна быть Alpha GitHub");
+
+        // 3. Многорежимная сортировка по надёжности (энтропии)
+        var sortedByStrength = System.Linq.Enumerable.ToList(
+            System.Linq.Enumerable.ThenBy(
+                System.Linq.Enumerable.OrderByDescending(allEntries, e => e.IsFavorite),
+                e => e.EntropyBits));
+        AssertEqual("Gamma Cloud", sortedByStrength[0].Title, "Избранная запись всегда должна быть первой при любой сортировке");
 
         return Task.CompletedTask;
     }

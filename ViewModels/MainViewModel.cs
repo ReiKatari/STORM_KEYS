@@ -57,7 +57,7 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private bool _isAboutDialogVisible;
 
-    // Новые возможности версии 1.0.2
+    // Новые возможности версии 1.0.3
     [ObservableProperty]
     private bool _isCompactView;
 
@@ -78,6 +78,42 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     private bool _isHealthDashboardVisible;
+
+    // Новые возможности версии 1.0.3
+    [ObservableProperty]
+    private string _selectedSortOrder = "По приоритету срока";
+
+    [ObservableProperty]
+    private string _secretEntropyText = "0 бит";
+
+    [ObservableProperty]
+    private string _secretCrackTimeText = "—";
+
+    [ObservableProperty]
+    private string _editTagsText = string.Empty;
+
+    [ObservableProperty]
+    private string _editCustomFieldsText = string.Empty;
+
+    [ObservableProperty]
+    private bool _hasPasswordHistory;
+
+    [ObservableProperty]
+    private string _editPasswordHistoryText = string.Empty;
+
+    [ObservableProperty]
+    private bool _canUndoDelete;
+
+    private KeyEntry? _lastDeletedEntry;
+
+    [ObservableProperty]
+    private string _oldMasterPasswordInput = string.Empty;
+
+    [ObservableProperty]
+    private string _newMasterPasswordInput = string.Empty;
+
+    [ObservableProperty]
+    private Thickness _cardPadding = new(16, 12, 16, 12);
 
     private DateTimeOffset _lastActivityTime = DateTimeOffset.Now;
 
@@ -328,7 +364,7 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _uiTooltipGenSoftwareKey = "Сгенерировать формат ключа ПО (XXXXX-XXXXX...)";
     [ObservableProperty] private string _uiAboutTitle = "О программе STORM KEYS";
     [ObservableProperty] private string _uiAboutPublisher = "Проверенный издатель: STORM TEAM";
-    [ObservableProperty] private string _uiAboutVersion = "Версия 1.0.0";
+    [ObservableProperty] private string _uiAboutVersion = "Версия 1.0.3";
     [ObservableProperty] private string _uiAboutCert = "Сертификат: STORM INTEGRATED PLATFORM";
     [ObservableProperty] private string _uiAboutDesc = "Защищённое хранилище цифровых ключей, паролей и лицензий с шифрованием AES-256-GCM и деривацией Argon2id.";
     [ObservableProperty] private string _uiAboutClose = "Закрыть";
@@ -492,12 +528,38 @@ public partial class MainViewModel : ObservableObject
     partial void OnSelectedCategoryFilterChanged(string value) => RefreshFilteredList();
     partial void OnSelectedExpirationFilterChanged(string value) => RefreshFilteredList();
 
+    partial void OnSelectedSortOrderChanged(string value) => RefreshFilteredList();
+
+    partial void OnIsCompactViewChanged(bool value)
+    {
+        CardPadding = value ? new Thickness(12, 6, 12, 6) : new Thickness(16, 12, 16, 12);
+    }
+
+    partial void OnEditTargetAppChanged(string value)
+    {
+        if (!IsNewEntry || string.IsNullOrWhiteSpace(value)) return;
+        string v = value.Trim().ToLowerInvariant();
+        if (v.StartsWith("ssh://") || v.StartsWith("rdp://") || v.StartsWith("postgres://") || v.StartsWith("mysql://"))
+            EditCategory = KeyCategory.Server;
+        else if (v.Contains("api.") || v.Contains("/api/") || v.Contains("token"))
+            EditCategory = KeyCategory.ApiKey;
+    }
+
     partial void OnEditSecretChanged(string value)
     {
         var eval = PasswordGenerator.EvaluateStrength(value);
         SecretStrengthScore = eval.Score;
         SecretStrengthLabel = eval.Label;
         SecretStrengthColor = eval.ColorHex;
+        double bits = PasswordGenerator.CalculateEntropyBits(value);
+        SecretEntropyText = $"{bits:F1} бит";
+        SecretCrackTimeText = PasswordGenerator.EstimateCrackTime(value);
+
+        // Умное автоопределение категории для лицензионных ключей XXXXX-XXXXX-...
+        if (IsNewEntry && !string.IsNullOrWhiteSpace(value) && value.Length >= 19 && value.Split('-').Length >= 4)
+        {
+            EditCategory = KeyCategory.License;
+        }
     }
 
     partial void OnEditHasExpirationChanged(bool value)
@@ -715,25 +777,45 @@ public partial class MainViewModel : ObservableObject
 
         IEnumerable<KeyEntry> query = allEntries;
 
-        // Фильтр поиска
+        var duplicateSecrets = new HashSet<string>(
+            allEntries.Where(e => !string.IsNullOrEmpty(e.SecretValue))
+                      .GroupBy(e => e.SecretValue)
+                      .Where(g => g.Count() > 1)
+                      .Select(g => g.Key));
+
+        // Умный многословный поиск (Multi-Token Smart Search) по всем полям, тегам и атрибутам
         if (!string.IsNullOrWhiteSpace(SearchText))
         {
-            string s = SearchText.Trim().ToLowerInvariant();
+            var tokens = SearchText.Trim().ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries);
             query = query.Where(e =>
-                e.Title.ToLowerInvariant().Contains(s) ||
-                e.UsernameOrEmail.ToLowerInvariant().Contains(s) ||
-                e.TargetAppOrUrl.ToLowerInvariant().Contains(s) ||
-                e.Notes.ToLowerInvariant().Contains(s));
+            {
+                string tagsJoined = e.Tags != null ? string.Join(" ", e.Tags).ToLowerInvariant() : string.Empty;
+                string customJoined = e.CustomFields != null
+                    ? string.Join(" ", e.CustomFields.Select(kv => $"{kv.Key}:{kv.Value}")).ToLowerInvariant()
+                    : string.Empty;
+                return tokens.All(t =>
+                {
+                    string cleanToken = t.TrimStart('#');
+                    return e.Title.ToLowerInvariant().Contains(cleanToken) ||
+                           e.UsernameOrEmail.ToLowerInvariant().Contains(cleanToken) ||
+                           e.TargetAppOrUrl.ToLowerInvariant().Contains(cleanToken) ||
+                           e.Notes.ToLowerInvariant().Contains(cleanToken) ||
+                           e.CategoryDisplayName.ToLowerInvariant().Contains(cleanToken) ||
+                           tagsJoined.Contains(cleanToken) ||
+                           customJoined.Contains(cleanToken);
+                });
+            });
         }
 
-
-        // Фильтрация по быстрым чипам
+        // Фильтрация по быстрым чипам (включая Слабые и Дубликаты)
         if (!string.IsNullOrEmpty(ActiveFilterChip) && ActiveFilterChip != "All")
         {
             query = ActiveFilterChip switch
             {
                 "Favorites" => query.Where(e => e.IsFavorite),
                 "Breached" => query.Where(e => e.IsPwnedBreached),
+                "Weak" => query.Where(e => !string.IsNullOrEmpty(e.SecretValue) && PasswordGenerator.EvaluateStrength(e.SecretValue).Score <= 2),
+                "Duplicates" => query.Where(e => !string.IsNullOrEmpty(e.SecretValue) && duplicateSecrets.Contains(e.SecretValue)),
                 "Expiring" => query.Where(e => e.IsExpiringSoon || e.IsExpired),
                 "Account" => query.Where(e => e.Category == KeyCategory.Account),
                 "License" => query.Where(e => e.Category == KeyCategory.License),
@@ -771,11 +853,19 @@ public partial class MainViewModel : ObservableObject
             };
         }
 
-        // Сортировка: сначала критические и истекающие, затем по имени
-        var list = query.OrderByDescending(e => e.IsFavorite).ThenBy(e => e.IsExpired ? 0 : (e.IsCriticalExpiring ? 1 : (e.IsExpiringSoon ? 2 : 3)))
-            .ThenBy(e => e.DaysRemaining ?? int.MaxValue)
-            .ThenBy(e => e.Title)
-            .ToList();
+        // Многорежимная сортировка (Избранные всегда сверху)
+        IEnumerable<KeyEntry> sorted = SelectedSortOrder switch
+        {
+            "По алфавиту (А–Я)" => query.OrderByDescending(e => e.IsFavorite).ThenBy(e => e.Title),
+            "Сначала новые" => query.OrderByDescending(e => e.IsFavorite).ThenByDescending(e => e.ModifiedAt),
+            "По надёжности" => query.OrderByDescending(e => e.IsFavorite).ThenBy(e => e.EntropyBits).ThenBy(e => e.Title),
+            "По категории" => query.OrderByDescending(e => e.IsFavorite).ThenBy(e => e.Category).ThenBy(e => e.Title),
+            _ => query.OrderByDescending(e => e.IsFavorite)
+                      .ThenBy(e => e.IsExpired ? 0 : (e.IsCriticalExpiring ? 1 : (e.IsExpiringSoon ? 2 : 3)))
+                      .ThenBy(e => e.DaysRemaining ?? int.MaxValue)
+                      .ThenBy(e => e.Title)
+        };
+        var list = sorted.ToList();
 
         FilteredEntries.Clear();
         foreach (var item in list)
@@ -798,6 +888,10 @@ public partial class MainViewModel : ObservableObject
         EditHasExpiration = false;
         EditNotes = string.Empty;
         EditTotpSecret = string.Empty;
+        EditTagsText = string.Empty;
+        EditCustomFieldsText = string.Empty;
+        HasPasswordHistory = false;
+        EditPasswordHistoryText = string.Empty;
         IsEditDialogVisible = true;
     }
 
@@ -817,6 +911,14 @@ public partial class MainViewModel : ObservableObject
         EditHasExpiration = entry.ExpirationDate.HasValue;
         EditNotes = entry.Notes;
         EditTotpSecret = entry.TotpSecret ?? string.Empty;
+        EditTagsText = entry.Tags != null && entry.Tags.Count > 0 ? string.Join(", ", entry.Tags) : string.Empty;
+        EditCustomFieldsText = entry.CustomFields != null && entry.CustomFields.Count > 0
+            ? string.Join(Environment.NewLine, entry.CustomFields.Select(kv => $"{kv.Key}: {kv.Value}"))
+            : string.Empty;
+        HasPasswordHistory = entry.PasswordHistory != null && entry.PasswordHistory.Count > 0;
+        EditPasswordHistoryText = HasPasswordHistory
+            ? $"В истории {entry.PasswordHistory!.Count} пред. паролей (посл. от {entry.PasswordHistory[0].ChangedAt:dd.MM.yyyy HH:mm})"
+            : string.Empty;
         IsEditDialogVisible = true;
     }
 
@@ -877,7 +979,7 @@ public partial class MainViewModel : ObservableObject
 
         if (_vaultService.CurrentContainer == null) return;
 
-        string? cleanTotp = string.IsNullOrWhiteSpace(EditTotpSecret) ? null : EditTotpSecret.Trim().Replace(" ", "").ToUpperInvariant();
+        string cleanTotp = string.IsNullOrWhiteSpace(EditTotpSecret) ? string.Empty : EditTotpSecret.Trim().Replace(" ", "").ToUpperInvariant();
         if (IsNewEntry)
         {
             var newEntry = new KeyEntry
@@ -890,6 +992,8 @@ public partial class MainViewModel : ObservableObject
                 ExpirationDate = EditHasExpiration ? EditExpirationDate : null,
                 Notes = EditNotes.Trim(),
                 TotpSecret = cleanTotp,
+                Tags = ParseTags(EditTagsText),
+                CustomFields = ParseCustomFields(EditCustomFieldsText),
                 CreatedAt = DateTimeOffset.UtcNow,
                 ModifiedAt = DateTimeOffset.UtcNow
             };
@@ -908,7 +1012,7 @@ public partial class MainViewModel : ObservableObject
             SelectedEntry.Category = EditCategory;
             SelectedEntry.UsernameOrEmail = EditUsername.Trim();
             
-            if (!IsNewEntry && SelectedEntry != null && SelectedEntry.SecretValue != EditSecret && !string.IsNullOrEmpty(SelectedEntry.SecretValue))
+            if (!IsNewEntry && SelectedEntry.SecretValue != EditSecret && !string.IsNullOrEmpty(SelectedEntry.SecretValue))
             {
                 SelectedEntry.PasswordHistory ??= new();
                 SelectedEntry.PasswordHistory.Insert(0, new PasswordHistoryItem 
@@ -925,6 +1029,8 @@ public partial class MainViewModel : ObservableObject
             SelectedEntry.ExpirationDate = EditHasExpiration ? EditExpirationDate : null;
             SelectedEntry.Notes = EditNotes.Trim();
             SelectedEntry.TotpSecret = cleanTotp;
+            SelectedEntry.Tags = ParseTags(EditTagsText);
+            SelectedEntry.CustomFields = ParseCustomFields(EditCustomFieldsText);
             if (SelectedEntry.HasTotp && !string.IsNullOrWhiteSpace(SelectedEntry.TotpSecret))
             {
                 SelectedEntry.CurrentTotpCode = _totpService.GenerateCode(SelectedEntry.TotpSecret);
@@ -949,15 +1055,164 @@ public partial class MainViewModel : ObservableObject
         RefreshFilteredList();
     }
 
+    private static List<string> ParseTags(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return new List<string>();
+        return raw.Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries)
+                  .Select(t => t.Trim().TrimStart('#'))
+                  .Where(t => !string.IsNullOrWhiteSpace(t))
+                  .Distinct(StringComparer.OrdinalIgnoreCase)
+                  .ToList();
+    }
+
+    private static Dictionary<string, string> ParseCustomFields(string? raw)
+    {
+        var dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(raw)) return dict;
+        var lines = raw.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
+        foreach (var line in lines)
+        {
+            int idx = line.IndexOf(':');
+            if (idx > 0)
+            {
+                string k = line[..idx].Trim();
+                string v = line[(idx + 1)..].Trim();
+                if (!string.IsNullOrEmpty(k)) dict[k] = v;
+            }
+        }
+        return dict;
+    }
+
     [RelayCommand]
     public async Task DeleteEntryAsync(KeyEntry? entry)
     {
         if (entry == null || _vaultService.CurrentContainer == null) return;
 
+        _lastDeletedEntry = entry;
+        CanUndoDelete = true;
         _vaultService.CurrentContainer.Entries.Remove(entry);
         await _vaultService.SaveVaultAsync();
         RefreshFilteredList();
-        StatusMessage = $"Запись «{entry.Title}» удалена.";
+        StatusMessage = $"Запись «{entry.Title}» удалена (Ctrl+Z — вернуть).";
+    }
+
+    [RelayCommand]
+    public async Task UndoDeleteAsync()
+    {
+        if (_lastDeletedEntry == null || _vaultService.CurrentContainer == null) return;
+        var restored = _lastDeletedEntry;
+        _lastDeletedEntry = null;
+        CanUndoDelete = false;
+        _vaultService.CurrentContainer.Entries.Add(restored);
+        await _vaultService.SaveVaultAsync();
+        RefreshFilteredList();
+        StatusMessage = $"Запись «{restored.Title}» восстановлена!";
+    }
+
+    [RelayCommand]
+    public async Task DuplicateEntryAsync(KeyEntry? entry)
+    {
+        if (entry == null || _vaultService.CurrentContainer == null) return;
+        RecordUserActivity();
+        var clone = entry.Clone();
+        _vaultService.CurrentContainer.Entries.Add(clone);
+        await _vaultService.SaveVaultAsync();
+        RefreshFilteredList();
+        StatusMessage = $"Создана копия: «{clone.Title}».";
+    }
+
+    [RelayCommand]
+    public void PeekSecret(KeyEntry? entry)
+    {
+        if (entry == null) return;
+        RecordUserActivity();
+        entry.IsSecretRevealed = !entry.IsSecretRevealed;
+        if (entry.IsSecretRevealed)
+        {
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(5000);
+                _dispatcherQueue?.TryEnqueue(() =>
+                {
+                    entry.IsSecretRevealed = false;
+                });
+            });
+        }
+    }
+
+    [RelayCommand]
+    public void CopyFullSummary(KeyEntry? entry)
+    {
+        if (entry == null || _dispatcherQueue == null) return;
+        RecordUserActivity();
+        var lines = new List<string> { $"[{entry.Title}] ({entry.CategoryDisplayName})" };
+        if (!string.IsNullOrWhiteSpace(entry.UsernameOrEmail)) lines.Add($"Логин: {entry.UsernameOrEmail}");
+        if (!string.IsNullOrWhiteSpace(entry.SecretValue)) lines.Add($"Пароль/Ключ: {entry.SecretValue}");
+        if (entry.HasTotp && !string.IsNullOrWhiteSpace(entry.CurrentTotpCode)) lines.Add($"Код 2FA: {entry.CurrentTotpCode}");
+        if (!string.IsNullOrWhiteSpace(entry.TargetAppOrUrl)) lines.Add($"URL: {entry.TargetAppOrUrl}");
+        int timeout = _vaultService.Settings.ClearClipboardAfterSeconds ? _vaultService.Settings.ClipboardClearTimeout : 0;
+        ClipboardHelper.CopyToClipboard(string.Join(Environment.NewLine, lines), _dispatcherQueue, timeout);
+        StatusMessage = $"Полная сводка «{entry.Title}» скопирована в буфер!";
+    }
+
+    [RelayCommand]
+    public void GeneratePassphrase()
+    {
+        EditSecret = PasswordGenerator.GeneratePassphrase(4, "-", true);
+    }
+
+    [RelayCommand]
+    public void RestorePreviousPassword()
+    {
+        if (SelectedEntry?.PasswordHistory != null && SelectedEntry.PasswordHistory.Count > 0)
+        {
+            EditSecret = SelectedEntry.PasswordHistory[0].Password;
+            StatusMessage = "Предыдущий пароль подставлен в поле ввода.";
+        }
+    }
+
+    [RelayCommand]
+    public async Task ChangeMasterPasswordAsync()
+    {
+        if (string.IsNullOrWhiteSpace(OldMasterPasswordInput) || string.IsNullOrWhiteSpace(NewMasterPasswordInput))
+        {
+            StatusMessage = "Укажите текущий и новый мастер-пароль.";
+            return;
+        }
+        if (NewMasterPasswordInput.Length < 6)
+        {
+            StatusMessage = "Новый мастер-пароль должен содержать минимум 6 символов.";
+            return;
+        }
+        try
+        {
+            await _vaultService.ChangeMasterPasswordAsync(OldMasterPasswordInput, NewMasterPasswordInput);
+            if (SettingsWindowsHelloEnabled)
+            {
+                await _windowsHelloService.EnrollAsync(NewMasterPasswordInput);
+            }
+            OldMasterPasswordInput = string.Empty;
+            NewMasterPasswordInput = string.Empty;
+            StatusMessage = "Мастер-пароль хранилища успешно изменён и перешифрован!";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Ошибка смены мастер-пароля: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    public async Task CreateBackupSnapshotAsync()
+    {
+        try
+        {
+            string snap = await _vaultService.CreateBackupSnapshotAsync();
+            StatusMessage = $"Резервная копия создана: {Path.GetFileName(snap)}";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Ошибка резервного копирования: {ex.Message}";
+        }
     }
 
     [RelayCommand]
@@ -985,9 +1240,17 @@ public partial class MainViewModel : ObservableObject
         if (entry == null) return;
 
         TeachingTipTitle = entry.Title;
-        TeachingTipSubtitle = string.IsNullOrEmpty(entry.UsernameOrEmail) ? entry.TargetAppOrUrl : entry.UsernameOrEmail;
+        string sub = string.IsNullOrEmpty(entry.UsernameOrEmail) ? entry.TargetAppOrUrl : entry.UsernameOrEmail;
+        if (!string.IsNullOrWhiteSpace(entry.TagsDisplayText))
+            sub += $" • {entry.TagsDisplayText}";
+        TeachingTipSubtitle = sub;
         TeachingTipSecret = entry.MaskedSecret;
-        TeachingTipStatus = entry.ExpirationStatusText;
+        string extra = $"Энтропия: {entry.EntropyBits:F1} бит ({entry.CrackTimeText})";
+        if (entry.CustomFields != null && entry.CustomFields.Count > 0)
+        {
+            extra += " | Поля: " + string.Join(", ", entry.CustomFields.Select(kv => $"{kv.Key}={kv.Value}"));
+        }
+        TeachingTipStatus = $"{entry.ExpirationStatusText} • {extra}";
         TeachingTipBadgeColor = entry.StatusBadgeColor;
         SelectedEntry = entry;
         IsTeachingTipOpen = true;

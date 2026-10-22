@@ -6,7 +6,7 @@ namespace StormKeys.Models;
 public class VaultMetadata
 {
     public string AppName { get; set; } = "STORM KEYS";
-    public string SchemaVersion { get; set; } = "1.0.2";
+    public string SchemaVersion { get; set; } = "1.0.3";
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset LastModifiedAt { get; set; } = DateTimeOffset.UtcNow;
     public string DeviceName { get; set; } = Environment.MachineName;
