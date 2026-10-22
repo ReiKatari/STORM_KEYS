@@ -21,7 +21,7 @@
 
         <TitleBar x:Name="AppTitleBar" Title="STORM KEYS 1.0.0">
             <TitleBar.IconSource>
-                <ImageIconSource ImageSource="Assets/Square44x44Logo.targetsize-24_altform-unplated.png" />
+                <ImageIconSource ImageSource="Assets/AppIcon.ico" />
             </TitleBar.IconSource>
         </TitleBar>
 
@@ -30,7 +30,7 @@
         <tb:TaskbarIcon
             x:Name="StormTrayIcon"
             ToolTipText="STORM KEYS - Защищенное хранилище ключей и паролей"
-            IconSource="/Assets/Square44x44Logo.targetsize-24_altform-unplated.png">
+            IconSource="/Assets/AppIcon.ico">
             <tb:TaskbarIcon.ContextFlyout>
                 <MenuFlyout>
                     <MenuFlyoutItem x:Name="MenuOpenApp" Text="Открыть STORM KEYS" Click="MenuOpenApp_Click">

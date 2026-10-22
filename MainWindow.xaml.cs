@@ -19,7 +19,7 @@ public sealed partial class MainWindow : Window
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
 
-        AppWindow.SetIcon("Assets/Square44x44Logo.targetsize-24_altform-unplated.png");
+        AppWindow.SetIcon("Assets/AppIcon.ico");
         AppWindow.Title = "STORM KEYS";
 
         // Размер окна по умолчанию согласно стандарту STORM (Section 8: Desktop Default Geometry >= 1280x800)
