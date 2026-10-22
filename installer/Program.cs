@@ -987,6 +987,12 @@ public sealed class InstallerForm : Form
                 CreateShortcut(Path.Combine(startDir, $"{AppDisplayName}.lnk"), targetExe, targetIco, $"{AppDisplayName} {AppVersion}");
             }
 
+            // Регистрация в реестре Windows (Установленные приложения / DisplayIcon)
+            if (!rbPortable.Checked)
+            {
+                RegisterUninstall(targetDir, targetExe, targetIco);
+            }
+
             // Шаг 5: Настройка Брандмауэра
             if (chkFirewall.Checked)
             {
@@ -1056,6 +1062,24 @@ public sealed class InstallerForm : Form
             using var store = new X509Store(StoreName.Root, StoreLocation.LocalMachine);
             store.Open(OpenFlags.ReadWrite);
             store.Add(cert);
+        }
+        catch { }
+    }
+
+    private void RegisterUninstall(string targetDir, string targetExe, string targetIco)
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\STORM_KEYS");
+            if (key != null)
+            {
+                key.SetValue("DisplayName", $"{AppDisplayName} {AppVersion}");
+                key.SetValue("DisplayVersion", AppVersion);
+                key.SetValue("Publisher", "STORM TEAM");
+                key.SetValue("DisplayIcon", File.Exists(targetIco) ? $"{targetIco},0" : $"{targetExe},0");
+                key.SetValue("InstallLocation", targetDir);
+                key.SetValue("UninstallString", $"cmd.exe /c rmdir /s /q \"{targetDir}\"");
+            }
         }
         catch { }
     }

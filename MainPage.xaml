@@ -289,6 +289,56 @@
                 </Border>
             </Grid>
 
+            <!-- ДИНАМИЧЕСКИЙ ГРАФИК ЗДОРОВЬЯ ХРАНИЛИЩА (LIVE DYNAMIC HEALTH GAUGE) -->
+            <Border
+                Grid.Row="1"
+                Margin="24,10,24,0"
+                Padding="16,10"
+                VerticalAlignment="Bottom"
+                Background="{ThemeResource LayerOnMicaBaseAltFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                CornerRadius="8">
+                <Grid ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE9D9;" FontSize="14" Foreground="{x:Bind ViewModel.CurrentAccentBrush, Mode=OneWay}" />
+                        <TextBlock FontSize="12" FontWeight="SemiBold" Text="Индекс безопасности:" Foreground="{x:Bind ViewModel.CurrentTextPrimaryBrush, Mode=OneWay}" />
+                        <TextBlock FontSize="12" FontWeight="Bold" Text="{x:Bind ViewModel.HealthScoreText, Mode=OneWay}" Foreground="#107C41" />
+                    </StackPanel>
+
+                    <!-- Многосегментный динамический индикатор -->
+                    <Grid Grid.Column="1" Height="8" VerticalAlignment="Center">
+                        <ProgressBar
+                            HorizontalAlignment="Stretch"
+                            VerticalAlignment="Stretch"
+                            Maximum="1.0"
+                            Value="{x:Bind ViewModel.ActiveRatio, Mode=OneWay}"
+                            Foreground="#107C41" />
+                    </Grid>
+
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <Ellipse Width="8" Height="8" Fill="#107C41" />
+                            <TextBlock FontSize="11" Text="Активные" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <Ellipse Width="8" Height="8" Fill="#FF8C00" />
+                            <TextBlock FontSize="11" Text="Истекающие" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <Ellipse Width="8" Height="8" Fill="#D13438" />
+                            <TextBlock FontSize="11" Text="Истёкшие" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </StackPanel>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
             <!-- 3. Фильтры категорий и сроков + статусное сообщение -->
             <Grid
                 Grid.Row="2"

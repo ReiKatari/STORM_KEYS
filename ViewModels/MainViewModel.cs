@@ -105,6 +105,18 @@ public partial class MainViewModel : ObservableObject
     private int _activeCount;
 
     [ObservableProperty]
+    private double _activeRatio = 1.0;
+
+    [ObservableProperty]
+    private double _expiringRatio = 0.0;
+
+    [ObservableProperty]
+    private double _expiredRatio = 0.0;
+
+    [ObservableProperty]
+    private string _healthScoreText = "100%";
+
+    [ObservableProperty]
     private string _cloudSyncStatusText = "Локальное хранилище";
 
     [ObservableProperty]
@@ -497,6 +509,12 @@ public partial class MainViewModel : ObservableObject
         ExpiringSoonCount = allEntries.Count(e => e.IsExpiringSoon);
         ExpiredCount = allEntries.Count(e => e.IsExpired);
         ActiveCount = allEntries.Count(e => !e.IsExpired);
+
+        double total = Math.Max(1, TotalEntriesCount);
+        ActiveRatio = (double)ActiveCount / total;
+        ExpiringRatio = (double)ExpiringSoonCount / total;
+        ExpiredRatio = (double)ExpiredCount / total;
+        HealthScoreText = TotalEntriesCount == 0 ? "100%" : $"{(double)ActiveCount / total * 100:F0}%";
 
         IEnumerable<KeyEntry> query = allEntries;
 

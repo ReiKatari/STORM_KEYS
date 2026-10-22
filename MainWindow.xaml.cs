@@ -52,6 +52,20 @@ public sealed partial class MainWindow : Window
         // Получаем дескриптор Win32 окна
         var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
 
+        // Явная привязка иконки в шапке окна для Unpackaged WinUI 3
+        try
+        {
+            var logoPath = Path.Combine(AppContext.BaseDirectory, "Assets", "Square44x44Logo.scale-200.png");
+            if (File.Exists(logoPath))
+            {
+                AppTitleBar.IconSource = new ImageIconSource
+                {
+                    ImageSource = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(logoPath))
+                };
+            }
+        }
+        catch { }
+
         // Загрузка и установка иконки окна и панели задач
         try
         {
