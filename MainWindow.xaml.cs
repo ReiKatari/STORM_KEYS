@@ -25,6 +25,12 @@ public sealed partial class MainWindow : Window
     [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
     private static extern IntPtr LoadImage(IntPtr hinst, string lpszName, uint uType, int cxDesired, int cyDesired, uint fuLoad);
 
+    [DllImport("user32.dll")]
+    private static extern uint GetDpiForWindow(IntPtr hwnd);
+
+    [DllImport("user32.dll")]
+    private static extern int GetSystemMetrics(int nIndex);
+
     private const uint WM_SETICON = 0x0080;
     private const IntPtr ICON_SMALL = 0;
     private const IntPtr ICON_BIG = (IntPtr)1;
@@ -88,8 +94,21 @@ public sealed partial class MainWindow : Window
         }
         catch { }
 
-        // Размер окна по умолчанию согласно стандарту STORM (Section 8: Desktop Default Geometry >= 1280x800)
-        AppWindow.Resize(new Windows.Graphics.SizeInt32(1280, 800));
+        // DPI-зависимый размер окна по умолчанию (1360x840 DIPs с учётом масштаба экрана и центрированием)
+        try
+        {
+            double scale = hWnd != IntPtr.Zero ? Math.Max(1.0, GetDpiForWindow(hWnd) / 96.0) : 1.0;
+            int screenW = Math.Max(1280, GetSystemMetrics(0));
+            int screenH = Math.Max(800, GetSystemMetrics(1));
+            int targetW = Math.Min((int)Math.Round(1360 * scale), screenW - 48);
+            int targetH = Math.Min((int)Math.Round(840 * scale), screenH - 64);
+            AppWindow.Resize(new Windows.Graphics.SizeInt32(targetW, targetH));
+            AppWindow.Move(new Windows.Graphics.PointInt32(Math.Max(0, (screenW - targetW) / 2), Math.Max(0, (screenH - targetH) / 2)));
+        }
+        catch
+        {
+            AppWindow.Resize(new Windows.Graphics.SizeInt32(1360, 840));
+        }
 
         // Стандарт STORM: Закрытие в системный трей (Close-to-Tray)
         AppWindow.Closing += (sender, args) =>

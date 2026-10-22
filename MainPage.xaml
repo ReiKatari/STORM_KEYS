@@ -282,8 +282,12 @@
                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                         BorderThickness="1"
                         CornerRadius="8">
-                        <Grid>
-                            <StackPanel Spacing="4">
+                        <Grid ColumnSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Spacing="4">
                                 <TextBlock
                                     FontSize="12"
                                     Foreground="{ThemeResource TextFillColorSecondaryBrush}"
@@ -292,9 +296,10 @@
                                     FontSize="13"
                                     FontWeight="SemiBold"
                                     Text="{x:Bind ViewModel.CloudSyncStatusText, Mode=OneWay}"
-                                    TextTrimming="CharacterEllipsis" />
+                                    TextWrapping="Wrap" />
                             </StackPanel>
                             <FontIcon
+                                Grid.Column="1"
                                 HorizontalAlignment="Right"
                                 VerticalAlignment="Center"
                                 FontFamily="Segoe Fluent Icons"
@@ -354,7 +359,7 @@
             </StackPanel>
 
             <!-- 3. Фильтры категорий, сроков, сортировки и быстрые чипы -->
-            <StackPanel Grid.Row="2" Margin="24,4,24,8" Spacing="8">
+            <StackPanel Grid.Row="2" Margin="24,4,24,4" Spacing="8">
                 <Grid ColumnSpacing="10">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
@@ -400,104 +405,104 @@
                         Severity="Informational" />
                 </Grid>
 
-                <!-- Быстрые чипы категорий и статусов -->
+                <!-- Быстрые чипы категорий и статусов (компактная посадка + защитный отступ 18px от полосы прокрутки) -->
                 <ScrollViewer
                     HorizontalScrollBarVisibility="Auto"
                     HorizontalScrollMode="Enabled"
                     VerticalScrollBarVisibility="Disabled"
                     VerticalScrollMode="Disabled">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <Button Padding="12,6" Click="FilterChip_Click" Tag="All" CornerRadius="14">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                <TextBlock Text="Все" FontWeight="SemiBold" FontSize="12" />
-                                <Border Background="{ThemeResource LayerOnMicaBaseAltFillColorDefaultBrush}" CornerRadius="10" Padding="6,1">
+                    <StackPanel Margin="2,2,2,18" Orientation="Horizontal" Spacing="5">
+                        <Button Padding="8,4" Click="FilterChip_Click" Tag="All" CornerRadius="14">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <TextBlock Text="Все" FontWeight="SemiBold" FontSize="11.5" />
+                                <Border Background="{ThemeResource LayerOnMicaBaseAltFillColorDefaultBrush}" CornerRadius="10" Padding="5,1">
                                     <TextBlock Text="{x:Bind ViewModel.TotalEntriesCount, Mode=OneWay}" FontSize="10" FontWeight="Bold" />
                                 </Border>
                             </StackPanel>
                         </Button>
-                        <Button Padding="12,6" Click="FilterChip_Click" Tag="Favorites" CornerRadius="14">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Button Padding="8,4" Click="FilterChip_Click" Tag="Favorites" CornerRadius="14">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
                                 <FontIcon Glyph="&#xE735;" FontFamily="Segoe Fluent Icons" FontSize="11" Foreground="#FFB900" />
-                                <TextBlock Text="Избранное" FontWeight="SemiBold" FontSize="12" />
-                                <Border Background="{ThemeResource LayerOnMicaBaseAltFillColorDefaultBrush}" CornerRadius="10" Padding="6,1">
+                                <TextBlock Text="Избранное" FontWeight="SemiBold" FontSize="11.5" />
+                                <Border Background="{ThemeResource LayerOnMicaBaseAltFillColorDefaultBrush}" CornerRadius="10" Padding="5,1">
                                     <TextBlock Text="{x:Bind ViewModel.FavoritesCount, Mode=OneWay}" FontSize="10" FontWeight="Bold" />
                                 </Border>
                             </StackPanel>
                         </Button>
-                        <Button Padding="12,6" Click="FilterChip_Click" Tag="Account" CornerRadius="14">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Button Padding="8,4" Click="FilterChip_Click" Tag="Account" CornerRadius="14">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
                                 <FontIcon Glyph="&#xE77B;" FontFamily="Segoe Fluent Icons" FontSize="11" />
-                                <TextBlock Text="Аккаунты" FontWeight="SemiBold" FontSize="12" />
+                                <TextBlock Text="Аккаунты" FontWeight="SemiBold" FontSize="11.5" />
                             </StackPanel>
                         </Button>
-                        <Button Padding="12,6" Click="FilterChip_Click" Tag="License" CornerRadius="14">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Button Padding="8,4" Click="FilterChip_Click" Tag="License" CornerRadius="14">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
                                 <FontIcon Glyph="&#xE8A7;" FontFamily="Segoe Fluent Icons" FontSize="11" />
-                                <TextBlock Text="Лицензии" FontWeight="SemiBold" FontSize="12" />
+                                <TextBlock Text="Лицензии" FontWeight="SemiBold" FontSize="11.5" />
                             </StackPanel>
                         </Button>
-                        <Button Padding="12,6" Click="FilterChip_Click" Tag="ApiKey" CornerRadius="14">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Button Padding="8,4" Click="FilterChip_Click" Tag="ApiKey" CornerRadius="14">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
                                 <FontIcon Glyph="&#xE943;" FontFamily="Segoe Fluent Icons" FontSize="11" />
-                                <TextBlock Text="API / Токены" FontWeight="SemiBold" FontSize="12" />
+                                <TextBlock Text="API / Токены" FontWeight="SemiBold" FontSize="11.5" />
                             </StackPanel>
                         </Button>
-                        <Button Padding="12,6" Click="FilterChip_Click" Tag="Server" CornerRadius="14">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Button Padding="8,4" Click="FilterChip_Click" Tag="Server" CornerRadius="14">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
                                 <FontIcon Glyph="&#xEDA2;" FontFamily="Segoe Fluent Icons" FontSize="11" />
-                                <TextBlock Text="Серверы / RDP" FontWeight="SemiBold" FontSize="12" />
+                                <TextBlock Text="Серверы / RDP" FontWeight="SemiBold" FontSize="11.5" />
                             </StackPanel>
                         </Button>
-                        <Button Padding="12,6" Click="FilterChip_Click" Tag="BankCard" CornerRadius="14">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Button Padding="8,4" Click="FilterChip_Click" Tag="BankCard" CornerRadius="14">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
                                 <FontIcon Glyph="&#xE8C7;" FontFamily="Segoe Fluent Icons" FontSize="11" />
-                                <TextBlock Text="Карты" FontWeight="SemiBold" FontSize="12" />
+                                <TextBlock Text="Карты" FontWeight="SemiBold" FontSize="11.5" />
                             </StackPanel>
                         </Button>
-                        <Button Padding="12,6" Click="FilterChip_Click" Tag="Wifi" CornerRadius="14">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Button Padding="8,4" Click="FilterChip_Click" Tag="Wifi" CornerRadius="14">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
                                 <FontIcon Glyph="&#xE701;" FontFamily="Segoe Fluent Icons" FontSize="11" />
-                                <TextBlock Text="Wi-Fi" FontWeight="SemiBold" FontSize="12" />
+                                <TextBlock Text="Wi-Fi" FontWeight="SemiBold" FontSize="11.5" />
                             </StackPanel>
                         </Button>
-                        <Button Padding="12,6" Click="FilterChip_Click" Tag="Crypto" CornerRadius="14">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Button Padding="8,4" Click="FilterChip_Click" Tag="Crypto" CornerRadius="14">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
                                 <FontIcon Glyph="&#xE8AC;" FontFamily="Segoe Fluent Icons" FontSize="11" />
-                                <TextBlock Text="Крипто" FontWeight="SemiBold" FontSize="12" />
+                                <TextBlock Text="Крипто" FontWeight="SemiBold" FontSize="11.5" />
                             </StackPanel>
                         </Button>
-                        <Button Padding="12,6" Click="FilterChip_Click" Tag="Breached" CornerRadius="14">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Button Padding="8,4" Click="FilterChip_Click" Tag="Breached" CornerRadius="14">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
                                 <FontIcon Glyph="&#xE7BA;" FontFamily="Segoe Fluent Icons" FontSize="11" Foreground="#D13438" />
-                                <TextBlock Text="В утечках" FontWeight="SemiBold" FontSize="12" Foreground="#D13438" />
-                                <Border Background="#25D13438" CornerRadius="10" Padding="6,1">
+                                <TextBlock Text="В утечках" FontWeight="SemiBold" FontSize="11.5" Foreground="#D13438" />
+                                <Border Background="#25D13438" CornerRadius="10" Padding="5,1">
                                     <TextBlock Text="{x:Bind ViewModel.BreachedCount, Mode=OneWay}" FontSize="10" FontWeight="Bold" Foreground="#D13438" />
                                 </Border>
                             </StackPanel>
                         </Button>
-                        <Button Padding="12,6" Click="FilterChip_Click" Tag="Weak" CornerRadius="14">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Button Padding="8,4" Click="FilterChip_Click" Tag="Weak" CornerRadius="14">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
                                 <FontIcon Glyph="&#xE7BA;" FontFamily="Segoe Fluent Icons" FontSize="11" Foreground="#FF8C00" />
-                                <TextBlock Text="Слабые" FontWeight="SemiBold" FontSize="12" />
-                                <Border Background="#25FF8C00" CornerRadius="10" Padding="6,1">
+                                <TextBlock Text="Слабые" FontWeight="SemiBold" FontSize="11.5" />
+                                <Border Background="#25FF8C00" CornerRadius="10" Padding="5,1">
                                     <TextBlock Text="{x:Bind ViewModel.WeakPasswordsCount, Mode=OneWay}" FontSize="10" FontWeight="Bold" Foreground="#FF8C00" />
                                 </Border>
                             </StackPanel>
                         </Button>
-                        <Button Padding="12,6" Click="FilterChip_Click" Tag="Duplicates" CornerRadius="14">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Button Padding="8,4" Click="FilterChip_Click" Tag="Duplicates" CornerRadius="14">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
                                 <FontIcon Glyph="&#xE8C8;" FontFamily="Segoe Fluent Icons" FontSize="11" Foreground="#FF8C00" />
-                                <TextBlock Text="Дубликаты" FontWeight="SemiBold" FontSize="12" />
-                                <Border Background="#25FF8C00" CornerRadius="10" Padding="6,1">
+                                <TextBlock Text="Дубликаты" FontWeight="SemiBold" FontSize="11.5" />
+                                <Border Background="#25FF8C00" CornerRadius="10" Padding="5,1">
                                     <TextBlock Text="{x:Bind ViewModel.DuplicatePasswordsCount, Mode=OneWay}" FontSize="10" FontWeight="Bold" Foreground="#FF8C00" />
                                 </Border>
                             </StackPanel>
                         </Button>
-                        <Button Padding="12,6" Click="FilterChip_Click" Tag="Expiring" CornerRadius="14">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Button Padding="8,4" Click="FilterChip_Click" Tag="Expiring" CornerRadius="14">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
                                 <FontIcon Glyph="&#xE823;" FontFamily="Segoe Fluent Icons" FontSize="11" Foreground="#FF8C00" />
-                                <TextBlock Text="Истекающие" FontWeight="SemiBold" FontSize="12" />
-                                <Border Background="#25FF8C00" CornerRadius="10" Padding="6,1">
+                                <TextBlock Text="Истекающие" FontWeight="SemiBold" FontSize="11.5" />
+                                <Border Background="#25FF8C00" CornerRadius="10" Padding="5,1">
                                     <TextBlock Text="{x:Bind ViewModel.ExpiringSoonCount, Mode=OneWay}" FontSize="10" FontWeight="Bold" Foreground="#FF8C00" />
                                 </Border>
                             </StackPanel>
@@ -506,132 +511,145 @@
                 </ScrollViewer>
             </StackPanel>
 
-            <!-- 4А. ИНТЕРАКТИВНАЯ ПАНЕЛЬ БЫСТРОГО СТАРТА (КОГДА ХРАНИЛИЩЕ ПУСТОЕ) -->
-            <Border
+            <!-- 4А. ИНТЕРАКТИВНАЯ ПАНЕЛЬ БЫСТРОГО СТАРТА (КОГДА ХРАНИЛИЩЕ ПУСТОЕ — 0% ОБРЕЗАННОГО ТЕКСТА) -->
+            <ScrollViewer
                 Grid.Row="3"
-                Margin="24,8,24,24"
-                Padding="32"
-                HorizontalAlignment="Stretch"
-                VerticalAlignment="Center"
-                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                BorderThickness="1"
-                CornerRadius="12"
+                Padding="24,4,12,24"
+                HorizontalScrollBarVisibility="Disabled"
+                VerticalScrollBarVisibility="Auto"
                 Visibility="{x:Bind BoolToVis(ViewModel.IsVaultEmpty), Mode=OneWay}">
-                <StackPanel HorizontalAlignment="Center" MaxWidth="760" Spacing="18">
-                    <StackPanel HorizontalAlignment="Center" Spacing="6">
-                        <FontIcon
-                            HorizontalAlignment="Center"
-                            FontFamily="Segoe Fluent Icons"
-                            FontSize="36"
-                            Foreground="{x:Bind ViewModel.CurrentAccentBrush, Mode=OneWay}"
-                            Glyph="&#xE8D7;" />
-                        <TextBlock
-                            HorizontalAlignment="Center"
-                            FontSize="20"
-                            FontWeight="Bold"
-                            Text="Как добавить ключи, пароли и 2FA в хранилище" />
-                        <TextBlock
-                            HorizontalAlignment="Center"
-                            FontSize="13"
-                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                            Text="Выберите любой удобный способ: ручное создание по шаблону (Ctrl+N), умная вставка из буфера (Ctrl+V) или импорт файла."
-                            TextAlignment="Center"
-                            TextWrapping="Wrap" />
-                    </StackPanel>
+                <Border
+                    Margin="0,0,18,0"
+                    Padding="28,26"
+                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Center"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="12">
+                    <StackPanel HorizontalAlignment="Stretch" Spacing="18">
+                        <StackPanel HorizontalAlignment="Center" Spacing="6">
+                            <FontIcon
+                                HorizontalAlignment="Center"
+                                FontFamily="Segoe Fluent Icons"
+                                FontSize="36"
+                                Foreground="{x:Bind ViewModel.CurrentAccentBrush, Mode=OneWay}"
+                                Glyph="&#xE8D7;" />
+                            <TextBlock
+                                HorizontalAlignment="Center"
+                                FontSize="20"
+                                FontWeight="Bold"
+                                Text="Как добавить ключи, пароли и 2FA в хранилище"
+                                TextAlignment="Center"
+                                TextWrapping="Wrap" />
+                            <TextBlock
+                                HorizontalAlignment="Center"
+                                FontSize="13"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                Text="Выберите любой удобный способ: ручное создание по шаблону (Ctrl+N), умная вставка из буфера (Ctrl+V) или импорт файла."
+                                TextAlignment="Center"
+                                TextWrapping="Wrap" />
+                        </StackPanel>
 
-                    <!-- Главные кнопки создания и вставки -->
-                    <StackPanel HorizontalAlignment="Center" Orientation="Horizontal" Spacing="12">
-                        <Button
-                            Padding="18,10"
-                            Background="{x:Bind ViewModel.CurrentAccentBrush, Mode=OneWay}"
-                            Click="AddEntry_Click"
-                            Foreground="#FFFFFF">
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE710;" />
-                                <TextBlock FontWeight="Bold" Text="Добавить запись вручную (Ctrl+N)" />
-                            </StackPanel>
-                        </Button>
+                        <!-- Главные кнопки создания и вставки (без обрезания краёв при любом разрешении) -->
+                        <StackPanel HorizontalAlignment="Center" Orientation="Horizontal" Spacing="10">
+                            <Button
+                                Padding="16,10"
+                                Background="{x:Bind ViewModel.CurrentAccentBrush, Mode=OneWay}"
+                                Click="AddEntry_Click"
+                                Foreground="#FFFFFF">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE710;" />
+                                    <TextBlock FontWeight="Bold" Text="Добавить запись вручную (Ctrl+N)" />
+                                </StackPanel>
+                            </Button>
 
-                        <Button
-                            Padding="16,10"
-                            Click="ImportClipboard_Click">
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE77F;" />
-                                <TextBlock FontWeight="SemiBold" Text="Быстрая вставка из буфера (Ctrl+V)" />
-                            </StackPanel>
-                        </Button>
+                            <Button
+                                Padding="14,10"
+                                Click="ImportClipboard_Click">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE77F;" />
+                                    <TextBlock FontWeight="SemiBold" Text="Быстрая вставка из буфера (Ctrl+V)" />
+                                </StackPanel>
+                            </Button>
 
-                        <Button
-                            Padding="16,10"
-                            Click="ImportFile_Click">
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE8E5;" />
-                                <TextBlock FontWeight="SemiBold" Text="Импорт из файла (CSV / JSON / .env)" />
-                            </StackPanel>
-                        </Button>
-                    </StackPanel>
-
-                    <!-- Быстрые шаблоны форматов в 1 клик -->
-                    <StackPanel Spacing="8">
-                        <TextBlock
-                            HorizontalAlignment="Center"
-                            FontSize="12"
-                            FontWeight="SemiBold"
-                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                            Text="Или создайте запись сразу по готовому шаблону формата:" />
-                        <StackPanel HorizontalAlignment="Center" Orientation="Horizontal" Spacing="8">
-                            <Button Click="QuickAddTemplate_Click" Tag="Account">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                    <FontIcon FontFamily="Segoe Fluent Icons" FontSize="13" Glyph="&#xE77B;" />
-                                    <TextBlock Text="Сайт / Аккаунт + 2FA" />
-                                </StackPanel>
-                            </Button>
-                            <Button Click="QuickAddTemplate_Click" Tag="License">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                    <FontIcon FontFamily="Segoe Fluent Icons" FontSize="13" Glyph="&#xE8A7;" />
-                                    <TextBlock Text="Лицензия ПО / Игры" />
-                                </StackPanel>
-                            </Button>
-                            <Button Click="QuickAddTemplate_Click" Tag="ApiKey">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                    <FontIcon FontFamily="Segoe Fluent Icons" FontSize="13" Glyph="&#xE943;" />
-                                    <TextBlock Text="API Ключ / Токен" />
-                                </StackPanel>
-                            </Button>
-                            <Button Click="QuickAddTemplate_Click" Tag="Server">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                    <FontIcon FontFamily="Segoe Fluent Icons" FontSize="13" Glyph="&#xEDA2;" />
-                                    <TextBlock Text="Сервер / SSH / RDP" />
-                                </StackPanel>
-                            </Button>
-                            <Button Click="QuickAddTemplate_Click" Tag="BankCard">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                    <FontIcon FontFamily="Segoe Fluent Icons" FontSize="13" Glyph="&#xE8C7;" />
-                                    <TextBlock Text="Банковская карта" />
-                                </StackPanel>
-                            </Button>
-                            <Button Click="QuickAddTemplate_Click" Tag="Wifi">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                    <FontIcon FontFamily="Segoe Fluent Icons" FontSize="13" Glyph="&#xE701;" />
-                                    <TextBlock Text="Wi-Fi" />
-                                </StackPanel>
-                            </Button>
-                            <Button Click="QuickAddTemplate_Click" Tag="Crypto">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                    <FontIcon FontFamily="Segoe Fluent Icons" FontSize="13" Glyph="&#xE8AC;" />
-                                    <TextBlock Text="Крипто / Seed" />
+                            <Button
+                                Padding="14,10"
+                                Click="ImportFile_Click">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE8E5;" />
+                                    <TextBlock FontWeight="SemiBold" Text="Импорт из файла (CSV / JSON / .env)" />
                                 </StackPanel>
                             </Button>
                         </StackPanel>
-                    </StackPanel>
-                </StackPanel>
-            </Border>
 
-            <!-- 4Б. Список карточек ключей и паролей -->
+                        <!-- Быстрые шаблоны форматов в 2 сбалансированных ряда (100% кнопок видны сразу без обрезания) -->
+                        <StackPanel HorizontalAlignment="Center" Spacing="8">
+                            <TextBlock
+                                HorizontalAlignment="Center"
+                                FontSize="12"
+                                FontWeight="SemiBold"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                Text="Или создайте запись сразу по готовому шаблону формата:"
+                                TextAlignment="Center"
+                                TextWrapping="Wrap" />
+
+                            <StackPanel HorizontalAlignment="Center" Orientation="Horizontal" Spacing="8">
+                                <Button Padding="12,7" Click="QuickAddTemplate_Click" Tag="Account">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <FontIcon FontFamily="Segoe Fluent Icons" FontSize="13" Glyph="&#xE77B;" />
+                                        <TextBlock Text="Сайт / Аккаунт + 2FA" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Padding="12,7" Click="QuickAddTemplate_Click" Tag="License">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <FontIcon FontFamily="Segoe Fluent Icons" FontSize="13" Glyph="&#xE8A7;" />
+                                        <TextBlock Text="Лицензия ПО / Игры" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Padding="12,7" Click="QuickAddTemplate_Click" Tag="ApiKey">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <FontIcon FontFamily="Segoe Fluent Icons" FontSize="13" Glyph="&#xE943;" />
+                                        <TextBlock Text="API Ключ / Токен" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Padding="12,7" Click="QuickAddTemplate_Click" Tag="Server">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <FontIcon FontFamily="Segoe Fluent Icons" FontSize="13" Glyph="&#xEDA2;" />
+                                        <TextBlock Text="Сервер / SSH / RDP" />
+                                    </StackPanel>
+                                </Button>
+                            </StackPanel>
+
+                            <StackPanel HorizontalAlignment="Center" Orientation="Horizontal" Spacing="8">
+                                <Button Padding="12,7" Click="QuickAddTemplate_Click" Tag="BankCard">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <FontIcon FontFamily="Segoe Fluent Icons" FontSize="13" Glyph="&#xE8C7;" />
+                                        <TextBlock Text="Банковская карта" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Padding="12,7" Click="QuickAddTemplate_Click" Tag="Wifi">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <FontIcon FontFamily="Segoe Fluent Icons" FontSize="13" Glyph="&#xE701;" />
+                                        <TextBlock Text="Сеть Wi-Fi" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Padding="12,7" Click="QuickAddTemplate_Click" Tag="Crypto">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <FontIcon FontFamily="Segoe Fluent Icons" FontSize="13" Glyph="&#xE8AC;" />
+                                        <TextBlock Text="Крипто / Seed-фраза" />
+                                    </StackPanel>
+                                </Button>
+                            </StackPanel>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </ScrollViewer>
+
+            <!-- 4Б. Список карточек ключей и паролей (с правым отступом 18px от вертикальной полосы прокрутки) -->
             <ListView
                 Grid.Row="3"
-                Padding="24,0,24,24"
+                Padding="24,0,12,24"
                 ItemsSource="{x:Bind ViewModel.FilteredEntries, Mode=OneWay}"
                 SelectionMode="None"
                 Visibility="{x:Bind InvBoolToVis(ViewModel.IsVaultEmpty), Mode=OneWay}">
@@ -644,6 +662,7 @@
                 <ListView.ItemTemplate>
                     <DataTemplate>
                         <Border
+                            Margin="0,0,18,0"
                             Padding="16,12"
                             Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                             BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
@@ -674,7 +693,7 @@
                                         Glyph="{Binding EffectiveGlyph}" />
                                 </Border>
 
-                                <!-- Название и целевой сервис/приложение -->
+                                <!-- Название и целевой сервис/приложение (без обрезания текста) -->
                                 <StackPanel
                                     Grid.Column="1"
                                     VerticalAlignment="Center"
@@ -683,35 +702,40 @@
                                         FontSize="15"
                                         FontWeight="SemiBold"
                                         Text="{Binding Title}"
-                                        TextTrimming="CharacterEllipsis" />
+                                        TextWrapping="Wrap" />
                                     <TextBlock
                                         FontSize="12"
                                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                         Text="{Binding TargetAppOrUrl}"
-                                        TextTrimming="CharacterEllipsis" />
+                                        TextWrapping="Wrap" />
                                     <TextBlock
                                         FontSize="11"
                                         FontWeight="SemiBold"
                                         Foreground="{ThemeResource AccentFillColorDefaultBrush}"
                                         Text="{Binding TagsDisplayText}"
                                         Visibility="{Binding TagsVisibility}"
-                                        TextTrimming="CharacterEllipsis" />
+                                        TextWrapping="Wrap" />
                                 </StackPanel>
 
-                                <!-- Логин / Email с кнопкой быстрого копирования -->
-                                <StackPanel
+                                <!-- Логин / Email с кнопкой быстрого копирования (без жёсткого MaxWidth=160) -->
+                                <Grid
                                     Grid.Column="2"
                                     VerticalAlignment="Center"
-                                    Orientation="Horizontal"
-                                    Spacing="8">
+                                    ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
                                     <TextBlock
-                                        MaxWidth="160"
+                                        Grid.Column="0"
                                         VerticalAlignment="Center"
                                         FontSize="13"
                                         Text="{Binding UsernameOrEmail}"
-                                        TextTrimming="CharacterEllipsis" />
+                                        TextWrapping="Wrap" />
                                     <Button
+                                        Grid.Column="1"
                                         Padding="6,4"
+                                        VerticalAlignment="Center"
                                         Click="CopyUsername_Click"
                                         Tag="{Binding}"
                                         ToolTipService.ToolTip="{Binding ElementName=RootPage, Path=ViewModel.UiTooltipCopyUsername}">
@@ -720,24 +744,31 @@
                                             FontSize="12"
                                             Glyph="&#xE8C8;" />
                                     </Button>
-                                </StackPanel>
+                                </Grid>
 
                                 <!-- Секрет (Пароль/Ключ), 2FA TOTP и Срок действия -->
                                 <StackPanel
                                     Grid.Column="3"
                                     VerticalAlignment="Center"
                                     Spacing="4">
-                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <Grid ColumnSpacing="6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
                                         <TextBlock
-                                            MaxWidth="180"
+                                            Grid.Column="0"
                                             VerticalAlignment="Center"
                                             FontFamily="Consolas"
                                             FontSize="13"
                                             FontWeight="Bold"
                                             Text="{Binding DisplayedSecret}"
-                                            TextTrimming="CharacterEllipsis" />
+                                            TextWrapping="Wrap" />
                                         <Button
+                                            Grid.Column="1"
                                             Padding="6,4"
+                                            VerticalAlignment="Center"
                                             Click="PeekSecret_Click"
                                             Tag="{Binding}"
                                             ToolTipService.ToolTip="Показать / скрыть секрет на 5 сек.">
@@ -747,7 +778,9 @@
                                                 Glyph="{Binding PeekGlyph}" />
                                         </Button>
                                         <Button
+                                            Grid.Column="2"
                                             Padding="6,4"
+                                            VerticalAlignment="Center"
                                             Click="CopySecret_Click"
                                             Tag="{Binding}"
                                             ToolTipService.ToolTip="{Binding ElementName=RootPage, Path=ViewModel.UiTooltipCopyPassword}">
@@ -756,7 +789,7 @@
                                                 FontSize="12"
                                                 Glyph="&#xE8C8;" />
                                         </Button>
-                                    </StackPanel>
+                                    </Grid>
 
                                     <!-- 2FA / TOTP Код с живым 30-секундным таймером и кнопкой авто-ввода 2FA -->
                                     <StackPanel Orientation="Horizontal" Spacing="6" Visibility="{Binding TotpVisibility}">
@@ -1000,8 +1033,8 @@
         <!-- ДИАЛОГ ДОБАВЛЕНИЯ / РЕДАКТИРОВАНИЯ (МАКСИМАЛЬНО ПРОКАЧАННЫЙ В 1.0.4) -->
         <Grid Background="#7F000000" Visibility="{x:Bind BoolToVis(ViewModel.IsEditDialogVisible), Mode=OneWay}">
             <Border
-                Width="680"
-                MaxHeight="740"
+                Width="780"
+                MaxHeight="780"
                 Margin="20"
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center"
@@ -1009,8 +1042,8 @@
                 BorderBrush="{x:Bind ViewModel.CurrentCardStrokeBrush, Mode=OneWay}"
                 BorderThickness="1"
                 CornerRadius="14">
-                <ScrollViewer Padding="26,22,26,22">
-                    <StackPanel Spacing="14">
+                <ScrollViewer Padding="26,20,12,20">
+                    <StackPanel Margin="0,0,18,0" Spacing="14">
                         <!-- Шапка диалога с превью выбранной иконки и кнопкой умного заполнения из буфера -->
                         <Grid ColumnSpacing="12">
                             <Grid.ColumnDefinitions>
@@ -1041,11 +1074,13 @@
                                     FontSize="17"
                                     FontWeight="Bold"
                                     Foreground="{x:Bind ViewModel.CurrentTextPrimaryBrush, Mode=OneWay}"
-                                    Text="{x:Bind ViewModel.EditDialogHeader, Mode=OneWay}" />
+                                    Text="{x:Bind ViewModel.EditDialogHeader, Mode=OneWay}"
+                                    TextWrapping="Wrap" />
                                 <TextBlock
                                     FontSize="11"
                                     Foreground="{x:Bind ViewModel.CurrentTextSecondaryBrush, Mode=OneWay}"
-                                    Text="Все форматы данных • Выбор иконки • Генератор с параметрами • Живой 2FA • Привязка .exe и URL" />
+                                    Text="Все форматы данных • Выбор иконки • Генератор с параметрами • Живой 2FA • Привязка .exe и URL"
+                                    TextWrapping="Wrap" />
                             </StackPanel>
 
                             <Button
@@ -1060,33 +1095,29 @@
                             </Button>
                         </Grid>
 
-                        <!-- 1. Шаблоны всех форматов данных в 1 клик -->
-                        <StackPanel Spacing="4">
+                        <!-- 1. Шаблоны всех форматов данных в 2 ряда (100% видны сразу без полосы прокрутки и обрезания) -->
+                        <StackPanel Spacing="6">
                             <TextBlock
                                 FontSize="12"
                                 FontWeight="SemiBold"
                                 Foreground="{x:Bind ViewModel.CurrentTextSecondaryBrush, Mode=OneWay}"
                                 Text="Быстрый шаблон формата записи:" />
-                            <ScrollViewer
-                                HorizontalScrollBarVisibility="Auto"
-                                HorizontalScrollMode="Enabled"
-                                VerticalScrollBarVisibility="Disabled"
-                                VerticalScrollMode="Disabled">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                    <Button Padding="10,5" Click="ApplyTemplateInDialog_Click" Tag="Account" Content="Сайт / Аккаунт" FontSize="11" />
-                                    <Button Padding="10,5" Click="ApplyTemplateInDialog_Click" Tag="License" Content="Лицензия ПО / Игры" FontSize="11" />
-                                    <Button Padding="10,5" Click="ApplyTemplateInDialog_Click" Tag="ApiKey" Content="API Ключ / Токен" FontSize="11" />
-                                    <Button Padding="10,5" Click="ApplyTemplateInDialog_Click" Tag="Certificate" Content="SSH / Сертификат" FontSize="11" />
-                                    <Button Padding="10,5" Click="ApplyTemplateInDialog_Click" Tag="Server" Content="Сервер / БД / RDP" FontSize="11" />
-                                    <Button Padding="10,5" Click="ApplyTemplateInDialog_Click" Tag="BankCard" Content="Банковская карта" FontSize="11" />
-                                    <Button Padding="10,5" Click="ApplyTemplateInDialog_Click" Tag="Wifi" Content="Сеть Wi-Fi" FontSize="11" />
-                                    <Button Padding="10,5" Click="ApplyTemplateInDialog_Click" Tag="Crypto" Content="Крипто / Seed" FontSize="11" />
-                                    <Button Padding="10,5" Click="ApplyTemplateInDialog_Click" Tag="Other" Content="Заметка / PIN" FontSize="11" />
-                                </StackPanel>
-                            </ScrollViewer>
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <Button Padding="11,5" Click="ApplyTemplateInDialog_Click" Tag="Account" Content="Сайт / Аккаунт" FontSize="11" />
+                                <Button Padding="11,5" Click="ApplyTemplateInDialog_Click" Tag="License" Content="Лицензия ПО / Игры" FontSize="11" />
+                                <Button Padding="11,5" Click="ApplyTemplateInDialog_Click" Tag="ApiKey" Content="API Ключ / Токен" FontSize="11" />
+                                <Button Padding="11,5" Click="ApplyTemplateInDialog_Click" Tag="Certificate" Content="SSH / Сертификат" FontSize="11" />
+                                <Button Padding="11,5" Click="ApplyTemplateInDialog_Click" Tag="Server" Content="Сервер / БД / RDP" FontSize="11" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <Button Padding="11,5" Click="ApplyTemplateInDialog_Click" Tag="BankCard" Content="Банковская карта" FontSize="11" />
+                                <Button Padding="11,5" Click="ApplyTemplateInDialog_Click" Tag="Wifi" Content="Сеть Wi-Fi" FontSize="11" />
+                                <Button Padding="11,5" Click="ApplyTemplateInDialog_Click" Tag="Crypto" Content="Крипто / Seed-фраза" FontSize="11" />
+                                <Button Padding="11,5" Click="ApplyTemplateInDialog_Click" Tag="Other" Content="Заметка / PIN" FontSize="11" />
+                            </StackPanel>
                         </StackPanel>
 
-                        <!-- 2. Выбор иконки записи (20 семантических значков) -->
+                        <!-- 2. Выбор иконки записи (20 семантических значков с нижним отступом 16px от скроллбара) -->
                         <StackPanel Spacing="4">
                             <TextBlock
                                 FontSize="12"
@@ -1098,7 +1129,7 @@
                                 HorizontalScrollMode="Enabled"
                                 VerticalScrollBarVisibility="Disabled"
                                 VerticalScrollMode="Disabled">
-                                <ItemsControl ItemsSource="{x:Bind ViewModel.AvailableIcons}">
+                                <ItemsControl Margin="0,2,0,16" ItemsSource="{x:Bind ViewModel.AvailableIcons}">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>
                                             <StackPanel Orientation="Horizontal" Spacing="4" />
@@ -1107,8 +1138,8 @@
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
                                             <Button
-                                                Width="34"
-                                                Height="34"
+                                                Width="32"
+                                                Height="32"
                                                 Padding="0"
                                                 Click="SelectIcon_Click"
                                                 Tag="{Binding Glyph}"
@@ -1287,13 +1318,17 @@
                                     </StackPanel>
                                 </Grid>
 
-                                <!-- Чекбоксы классов символов генератора -->
-                                <StackPanel Orientation="Horizontal" Spacing="14">
-                                    <CheckBox MinWidth="0" Content="A–Z (Заглавные)" FontSize="12" IsChecked="{x:Bind ViewModel.GenUseUpper, Mode=TwoWay}" />
-                                    <CheckBox MinWidth="0" Content="a–z (Строчные)" FontSize="12" IsChecked="{x:Bind ViewModel.GenUseLower, Mode=TwoWay}" />
-                                    <CheckBox MinWidth="0" Content="0–9 (Цифры)" FontSize="12" IsChecked="{x:Bind ViewModel.GenUseDigits, Mode=TwoWay}" />
-                                    <CheckBox MinWidth="0" Content="!@#$%^&amp;* (Спец.)" FontSize="12" IsChecked="{x:Bind ViewModel.GenUseSpecial, Mode=TwoWay}" />
-                                    <CheckBox MinWidth="0" Content="Без похожих (0/O, 1/l)" FontSize="12" IsChecked="{x:Bind ViewModel.GenExcludeAmbiguous, Mode=TwoWay}" />
+                                <!-- Чекбоксы классов символов генератора (в 2 ряда без обрезания текста) -->
+                                <StackPanel Spacing="2">
+                                    <StackPanel Orientation="Horizontal" Spacing="16">
+                                        <CheckBox MinWidth="0" Content="A–Z (Заглавные)" FontSize="12" IsChecked="{x:Bind ViewModel.GenUseUpper, Mode=TwoWay}" />
+                                        <CheckBox MinWidth="0" Content="a–z (Строчные)" FontSize="12" IsChecked="{x:Bind ViewModel.GenUseLower, Mode=TwoWay}" />
+                                        <CheckBox MinWidth="0" Content="0–9 (Цифры)" FontSize="12" IsChecked="{x:Bind ViewModel.GenUseDigits, Mode=TwoWay}" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Spacing="16">
+                                        <CheckBox MinWidth="0" Content="!@#$%^&amp;* (Спецсимволы)" FontSize="12" IsChecked="{x:Bind ViewModel.GenUseSpecial, Mode=TwoWay}" />
+                                        <CheckBox MinWidth="0" Content="Без похожих символов (0/O, 1/l)" FontSize="12" IsChecked="{x:Bind ViewModel.GenExcludeAmbiguous, Mode=TwoWay}" />
+                                    </StackPanel>
                                 </StackPanel>
 
                                 <!-- Индикатор надежности, битовой энтропии и времени взлома -->
@@ -1506,8 +1541,8 @@
         <!-- ДИАЛОГ НАСТРОЕК ХРАНИЛИЩА И ОБЛАКА (МОДАЛЬНЫЙ ОВЕРЛЕЙ) -->
         <Grid Background="#7F000000" Visibility="{x:Bind BoolToVis(ViewModel.IsSettingsDialogVisible), Mode=OneWay}">
             <Border
-                Width="540"
-                MaxHeight="700"
+                Width="640"
+                MaxHeight="760"
                 Margin="24"
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center"
@@ -1515,8 +1550,8 @@
                 BorderBrush="{x:Bind ViewModel.CurrentCardStrokeBrush, Mode=OneWay}"
                 BorderThickness="1"
                 CornerRadius="12">
-                <ScrollViewer Padding="28">
-                    <StackPanel Spacing="14">
+                <ScrollViewer Padding="26,22,12,22">
+                    <StackPanel Margin="0,0,18,0" Spacing="14">
                         <TextBlock
                             FontSize="18"
                             FontWeight="Bold"
@@ -1629,7 +1664,7 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" VerticalAlignment="Center" FontSize="11" Foreground="{x:Bind ViewModel.CurrentTextSecondaryBrush, Mode=OneWay}" Text="{x:Bind ViewModel.AuditStatusText, Mode=OneWay}" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Grid.Column="0" VerticalAlignment="Center" FontSize="11" Foreground="{x:Bind ViewModel.CurrentTextSecondaryBrush, Mode=OneWay}" Text="{x:Bind ViewModel.AuditStatusText, Mode=OneWay}" TextWrapping="Wrap" />
                                 <Button Grid.Column="1" Command="{x:Bind ViewModel.AuditAllPasswordsCommand}" IsEnabled="{x:Bind InvBool(ViewModel.IsAuditingPasswords), Mode=OneWay}">
                                     <StackPanel Orientation="Horizontal" Spacing="6">
                                         <FontIcon Glyph="&#xE72C;" FontFamily="Segoe Fluent Icons" FontSize="12" />
@@ -1703,7 +1738,7 @@
                             BorderThickness="1"
                             CornerRadius="6">
                             <StackPanel Spacing="8">
-                                <Grid>
+                                <Grid ColumnSpacing="8">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
@@ -1713,7 +1748,8 @@
                                         <TextBlock
                                             FontSize="11"
                                             Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                            Text="{x:Bind ViewModel.UpdateStatusText, Mode=OneWay}" />
+                                            Text="{x:Bind ViewModel.UpdateStatusText, Mode=OneWay}"
+                                            TextWrapping="Wrap" />
                                     </StackPanel>
                                     <Button
                                         Grid.Column="1"
