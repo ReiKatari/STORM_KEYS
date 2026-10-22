@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
+using CommunityToolkit.Mvvm.ComponentModel;
+using Microsoft.UI.Xaml;
 
 namespace StormKeys.Models;
 
@@ -14,7 +16,7 @@ public enum KeyCategory
     Other           // Заметки, пин-коды, прочее
 }
 
-public class KeyEntry
+public partial class KeyEntry : ObservableObject
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public string Title { get; set; } = string.Empty;
@@ -25,6 +27,102 @@ public class KeyEntry
     public DateTimeOffset? ExpirationDate { get; set; }
     public string Notes { get; set; } = string.Empty;
     public List<string> Tags { get; set; } = new();
+
+    // Двухфакторная аутентификация (TOTP / 2FA)
+    private string _totpSecret = string.Empty;
+    public string TotpSecret
+    {
+        get => _totpSecret;
+        set
+        {
+            if (SetProperty(ref _totpSecret, value))
+            {
+                OnPropertyChanged(nameof(HasTotp));
+                OnPropertyChanged(nameof(TotpVisibility));
+            }
+        }
+    }
+
+    [JsonIgnore]
+    public bool HasTotp => !string.IsNullOrWhiteSpace(TotpSecret);
+
+    [JsonIgnore]
+    public Visibility TotpVisibility => HasTotp ? Visibility.Visible : Visibility.Collapsed;
+
+    [ObservableProperty]
+    [property: JsonIgnore]
+    private string _currentTotpCode = string.Empty;
+
+    [ObservableProperty]
+    [property: JsonIgnore]
+    private int _totpSecondsRemaining = 30;
+
+    [ObservableProperty]
+    [property: JsonIgnore]
+    private double _totpProgress = 1.0;
+
+    partial void OnTotpSecondsRemainingChanged(int value)
+    {
+        OnPropertyChanged(nameof(TotpCountdownText));
+    }
+
+    partial void OnCurrentTotpCodeChanged(string value)
+    {
+        OnPropertyChanged(nameof(FormattedTotpCode));
+    }
+
+    [JsonIgnore]
+    public string FormattedTotpCode => string.IsNullOrEmpty(CurrentTotpCode)
+        ? "--- ---"
+        : (CurrentTotpCode.Length == 6 ? $"{CurrentTotpCode[..3]} {CurrentTotpCode[3..]}" : CurrentTotpCode);
+
+    [JsonIgnore]
+    public string TotpCountdownText => $"{TotpSecondsRemaining}s";
+
+    // Аудит безопасности (Have I Been Pwned)
+    [ObservableProperty]
+    private int _pwnedBreachCount = -1;
+
+    [ObservableProperty]
+    private DateTimeOffset? _pwnedLastCheckedAt;
+
+    partial void OnPwnedBreachCountChanged(int value)
+    {
+        OnPropertyChanged(nameof(IsPwnedChecked));
+        OnPropertyChanged(nameof(IsPwnedBreached));
+        OnPropertyChanged(nameof(PwnedStatusText));
+        OnPropertyChanged(nameof(PwnedStatusColor));
+        OnPropertyChanged(nameof(PwnedBreachedVisibility));
+        OnPropertyChanged(nameof(PwnedSafeVisibility));
+    }
+
+    partial void OnPwnedLastCheckedAtChanged(DateTimeOffset? value)
+    {
+        OnPropertyChanged(nameof(PwnedSafeVisibility));
+    }
+
+    [JsonIgnore]
+    public bool IsPwnedChecked => PwnedBreachCount >= 0;
+
+    [JsonIgnore]
+    public bool IsPwnedBreached => PwnedBreachCount > 0;
+
+    [JsonIgnore]
+    public Visibility PwnedBreachedVisibility => PwnedBreachCount > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+    [JsonIgnore]
+    public Visibility PwnedSafeVisibility => (PwnedBreachCount == 0 && PwnedLastCheckedAt.HasValue) ? Visibility.Visible : Visibility.Collapsed;
+
+    [JsonIgnore]
+    public string PwnedStatusText => PwnedBreachCount < 0 
+        ? "Не проверялся" 
+        : (PwnedBreachCount == 0 ? "0 утечек (Безопасен)" : $"Утечка: {PwnedBreachCount:N0} раз!");
+
+    [JsonIgnore]
+    public string PwnedStatusColor => PwnedBreachCount < 0 
+        ? "#888888" 
+        : (PwnedBreachCount == 0 ? "#107C41" : "#D13438");
+
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset ModifiedAt { get; set; } = DateTimeOffset.UtcNow;
 

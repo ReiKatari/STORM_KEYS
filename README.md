@@ -74,9 +74,3 @@ dotnet publish StormKeys.csproj -c Release -r win-x64 -p:PublishProfile=win-x64 
 # Сборка установщика
 dotnet publish installer/StormKeys.Installer.csproj -c Release -r win-x64 --self-contained true -o "./dist"
 ```
-
----
-
-## 📄 Лицензия и авторство
-
-Разработано **STORM TEAM**. Все права защищены.

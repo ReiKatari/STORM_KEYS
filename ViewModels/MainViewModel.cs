@@ -23,7 +23,11 @@ public partial class MainViewModel : ObservableObject
     private readonly INotificationService _notificationService;
     private readonly IStormCertificateService _certService;
     private readonly IUpdateService _updateService;
+    private readonly ITotpService _totpService;
+    private readonly IWindowsHelloService _windowsHelloService;
+    private readonly IPwnedPasswordsService _pwnedPasswordsService;
     private DispatcherQueue? _dispatcherQueue;
+    private DispatcherTimer? _totpTimer;
 
     // Обновления (Auto-Update System)
     [ObservableProperty]
@@ -168,6 +172,33 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private int _secretStrengthScore = 0;
 
+    // TOTP 2FA Authenticator
+    [ObservableProperty]
+    private string _editTotpSecret = string.Empty;
+
+    // Windows Hello Биометрия
+    [ObservableProperty]
+    private bool _isWindowsHelloAvailable;
+
+    [ObservableProperty]
+    private bool _isWindowsHelloEnrolled;
+
+    [ObservableProperty]
+    private bool _settingsWindowsHelloEnabled;
+
+    // Have I Been Pwned аудит утечек
+    [ObservableProperty]
+    private bool _isAuditingPasswords;
+
+    [ObservableProperty]
+    private double _auditProgress;
+
+    [ObservableProperty]
+    private string _auditStatusText = "Проверить базу паролей на утечки";
+
+    [ObservableProperty]
+    private int _breachedPasswordsCount;
+
     // Диалог настроек
     [ObservableProperty]
     private bool _isSettingsDialogVisible;
@@ -271,6 +302,13 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _uiAboutCert = "Сертификат: STORM INTEGRATED PLATFORM";
     [ObservableProperty] private string _uiAboutDesc = "Защищённое хранилище цифровых ключей, паролей и лицензий с шифрованием AES-256-GCM и деривацией Argon2id.";
     [ObservableProperty] private string _uiAboutClose = "Закрыть";
+    [ObservableProperty] private string _uiWindowsHelloUnlock = "Войти через Windows Hello";
+    [ObservableProperty] private string _uiWindowsHelloToggle = "Биометрия Windows Hello (отпечаток / лицо / PIN)";
+    [ObservableProperty] private string _uiTotpLabel = "Код 2FA (TOTP)";
+    [ObservableProperty] private string _uiTotpCopyTooltip = "Скопировать код 2FA";
+    [ObservableProperty] private string _uiTotpSecretLabel = "Секретный ключ 2FA (Base32)";
+    [ObservableProperty] private string _uiTotpGenerate = "Сгенерировать ключ 2FA";
+    [ObservableProperty] private string _uiAuditPasswords = "Проверить базу паролей на утечки";
 
     // Стилизованная подсказка (TeachingTip)
     [ObservableProperty]
@@ -297,7 +335,10 @@ public partial class MainViewModel : ObservableObject
         IImportExportService importExportService,
         INotificationService notificationService,
         IStormCertificateService certService,
-        IUpdateService updateService)
+        IUpdateService updateService,
+        ITotpService totpService,
+        IWindowsHelloService windowsHelloService,
+        IPwnedPasswordsService pwnedPasswordsService)
     {
         _vaultService = vaultService;
         _cryptoService = cryptoService;
@@ -305,6 +346,9 @@ public partial class MainViewModel : ObservableObject
         _notificationService = notificationService;
         _certService = certService;
         _updateService = updateService;
+        _totpService = totpService;
+        _windowsHelloService = windowsHelloService;
+        _pwnedPasswordsService = pwnedPasswordsService;
     }
 
     public void Initialize(DispatcherQueue dispatcherQueue)
@@ -321,6 +365,7 @@ public partial class MainViewModel : ObservableObject
         SettingsCloudFolder = _vaultService.Settings.CloudSyncFolderPath;
         SettingsCloudEnabled = _vaultService.Settings.CloudSyncEnabled;
         SettingsAutoLockMinutes = _vaultService.Settings.AutoLockMinutes;
+        SettingsWindowsHelloEnabled = _vaultService.Settings.WindowsHelloEnabled && _windowsHelloService.IsEnrolled();
         var savedTheme = _vaultService.Settings.Theme ?? "MIDNIGHT";
         SelectedTheme = AvailableThemes.FirstOrDefault(t => t.StartsWith(savedTheme, StringComparison.OrdinalIgnoreCase)) ?? AvailableThemes[0];
 
@@ -335,6 +380,31 @@ public partial class MainViewModel : ObservableObject
 
         ApplyCurrentTheme();
         ApplyCurrentLanguage(LocalizationService.GetLanguage(SelectedLanguage).Code);
+
+        // Проверка биометрии Windows Hello
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                bool supported = await _windowsHelloService.IsSupportedAsync();
+                bool enrolled = _windowsHelloService.IsEnrolled();
+                _dispatcherQueue?.TryEnqueue(() =>
+                {
+                    IsWindowsHelloAvailable = supported;
+                    IsWindowsHelloEnrolled = enrolled;
+                    SettingsWindowsHelloEnabled = _vaultService.Settings.WindowsHelloEnabled && enrolled;
+                });
+            }
+            catch { }
+        });
+
+        // Запуск таймера обновления кодов TOTP 2FA
+        _totpTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(1)
+        };
+        _totpTimer.Tick += (s, e) => UpdateTotpCodes();
+        _totpTimer.Start();
 
         _notificationService.OnInAppNotification += (title, msg, entry) =>
         {
@@ -412,6 +482,70 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
+    public void UpdateTotpCodes()
+    {
+        if (IsVaultLocked || _vaultService.CurrentContainer == null) return;
+
+        int secRemaining = _totpService.GetSecondsRemaining();
+        double progress = (double)secRemaining / 30.0;
+
+        foreach (var entry in FilteredEntries)
+        {
+            if (entry.HasTotp && !string.IsNullOrWhiteSpace(entry.TotpSecret))
+            {
+                entry.CurrentTotpCode = _totpService.GenerateCode(entry.TotpSecret);
+                entry.TotpSecondsRemaining = secRemaining;
+                entry.TotpProgress = progress;
+            }
+        }
+    }
+
+    [RelayCommand]
+    public async Task UnlockWithWindowsHelloAsync()
+    {
+        if (IsLoading) return;
+        IsLoading = true;
+        MasterPasswordErrorMessage = string.Empty;
+        try
+        {
+            string? masterPassword = await _windowsHelloService.UnlockWithHelloAsync();
+            if (string.IsNullOrEmpty(masterPassword))
+            {
+                MasterPasswordErrorMessage = "Биометрическая аутентификация Windows Hello отменена или не пройдена.";
+                return;
+            }
+
+            bool ok = await _vaultService.UnlockVaultAsync(masterPassword);
+            if (ok)
+            {
+                IsVaultLocked = false;
+                MasterPasswordInput = string.Empty;
+                ConfirmPasswordInput = string.Empty;
+                RefreshFilteredList();
+                UpdateTotpCodes();
+
+                if (_dispatcherQueue != null)
+                {
+                    _notificationService.StartPeriodicCheck(() => _vaultService.CurrentContainer?.Entries ?? Enumerable.Empty<KeyEntry>(), _dispatcherQueue);
+                }
+
+                StatusMessage = "Хранилище успешно разблокировано через Windows Hello!";
+            }
+            else
+            {
+                MasterPasswordErrorMessage = "Сохранённый ключ Windows Hello не подошёл к хранилищу.";
+            }
+        }
+        catch (Exception ex)
+        {
+            MasterPasswordErrorMessage = $"Ошибка Windows Hello: {ex.Message}";
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
     [RelayCommand]
     public async Task UnlockOrCreateVaultAsync()
     {
@@ -439,12 +573,19 @@ public partial class MainViewModel : ObservableObject
                     return;
                 }
 
-                await _vaultService.CreateVaultAsync(MasterPasswordInput);
+                string pwd = MasterPasswordInput;
+                await _vaultService.CreateVaultAsync(pwd);
                 IsVaultUninitialized = false;
                 IsVaultLocked = false;
                 MasterPasswordInput = string.Empty;
                 ConfirmPasswordInput = string.Empty;
                 RefreshFilteredList();
+                UpdateTotpCodes();
+
+                if (SettingsWindowsHelloEnabled && !IsWindowsHelloEnrolled)
+                {
+                    _ = _windowsHelloService.EnrollAsync(pwd);
+                }
 
                 if (_dispatcherQueue != null)
                 {
@@ -455,13 +596,20 @@ public partial class MainViewModel : ObservableObject
             }
             else
             {
-                bool success = await _vaultService.UnlockVaultAsync(MasterPasswordInput);
+                string pwd = MasterPasswordInput;
+                bool success = await _vaultService.UnlockVaultAsync(pwd);
                 if (success)
                 {
                     IsVaultLocked = false;
                     MasterPasswordInput = string.Empty;
                     ConfirmPasswordInput = string.Empty;
                     RefreshFilteredList();
+                    UpdateTotpCodes();
+
+                    if (SettingsWindowsHelloEnabled && !IsWindowsHelloEnrolled)
+                    {
+                        _ = _windowsHelloService.EnrollAsync(pwd);
+                    }
 
                     if (_dispatcherQueue != null)
                     {
@@ -567,6 +715,8 @@ public partial class MainViewModel : ObservableObject
         FilteredEntries.Clear();
         foreach (var item in list)
             FilteredEntries.Add(item);
+
+        UpdateTotpCodes();
     }
 
     [RelayCommand]
@@ -582,6 +732,7 @@ public partial class MainViewModel : ObservableObject
         EditExpirationDate = null;
         EditHasExpiration = false;
         EditNotes = string.Empty;
+        EditTotpSecret = string.Empty;
         IsEditDialogVisible = true;
     }
 
@@ -600,6 +751,7 @@ public partial class MainViewModel : ObservableObject
         EditExpirationDate = entry.ExpirationDate;
         EditHasExpiration = entry.ExpirationDate.HasValue;
         EditNotes = entry.Notes;
+        EditTotpSecret = entry.TotpSecret ?? string.Empty;
         IsEditDialogVisible = true;
     }
 
@@ -614,6 +766,7 @@ public partial class MainViewModel : ObservableObject
 
         if (_vaultService.CurrentContainer == null) return;
 
+        string? cleanTotp = string.IsNullOrWhiteSpace(EditTotpSecret) ? null : EditTotpSecret.Trim().Replace(" ", "").ToUpperInvariant();
         if (IsNewEntry)
         {
             var newEntry = new KeyEntry
@@ -625,9 +778,16 @@ public partial class MainViewModel : ObservableObject
                 TargetAppOrUrl = EditTargetApp.Trim(),
                 ExpirationDate = EditHasExpiration ? EditExpirationDate : null,
                 Notes = EditNotes.Trim(),
+                TotpSecret = cleanTotp,
                 CreatedAt = DateTimeOffset.UtcNow,
                 ModifiedAt = DateTimeOffset.UtcNow
             };
+            if (newEntry.HasTotp && !string.IsNullOrWhiteSpace(newEntry.TotpSecret))
+            {
+                newEntry.CurrentTotpCode = _totpService.GenerateCode(newEntry.TotpSecret);
+                newEntry.TotpSecondsRemaining = _totpService.GetSecondsRemaining();
+                newEntry.TotpProgress = (double)newEntry.TotpSecondsRemaining / 30.0;
+            }
             _vaultService.CurrentContainer.Entries.Add(newEntry);
             StatusMessage = $"Запись «{newEntry.Title}» сохранена.";
         }
@@ -640,6 +800,17 @@ public partial class MainViewModel : ObservableObject
             SelectedEntry.TargetAppOrUrl = EditTargetApp.Trim();
             SelectedEntry.ExpirationDate = EditHasExpiration ? EditExpirationDate : null;
             SelectedEntry.Notes = EditNotes.Trim();
+            SelectedEntry.TotpSecret = cleanTotp;
+            if (SelectedEntry.HasTotp && !string.IsNullOrWhiteSpace(SelectedEntry.TotpSecret))
+            {
+                SelectedEntry.CurrentTotpCode = _totpService.GenerateCode(SelectedEntry.TotpSecret);
+                SelectedEntry.TotpSecondsRemaining = _totpService.GetSecondsRemaining();
+                SelectedEntry.TotpProgress = (double)SelectedEntry.TotpSecondsRemaining / 30.0;
+            }
+            else
+            {
+                SelectedEntry.CurrentTotpCode = string.Empty;
+            }
             SelectedEntry.ModifiedAt = DateTimeOffset.UtcNow;
             // Сброс флагов уведомлений, если дата изменилась
             SelectedEntry.Notified30Days = false;
@@ -696,6 +867,96 @@ public partial class MainViewModel : ObservableObject
         TeachingTipBadgeColor = entry.StatusBadgeColor;
         SelectedEntry = entry;
         IsTeachingTipOpen = true;
+    }
+
+    [RelayCommand]
+    public void CopyTotpCode(KeyEntry? entry)
+    {
+        if (entry == null || !entry.HasTotp || string.IsNullOrEmpty(entry.CurrentTotpCode) || _dispatcherQueue == null) return;
+        int timeout = _vaultService.Settings.ClearClipboardAfterSeconds ? _vaultService.Settings.ClipboardClearTimeout : 0;
+        ClipboardHelper.CopyToClipboard(entry.CurrentTotpCode.Replace(" ", ""), _dispatcherQueue, timeout);
+        StatusMessage = $"Код 2FA «{entry.CurrentTotpCode}» скопирован в буфер!";
+    }
+
+    [RelayCommand]
+    public void GenerateTotpSecret()
+    {
+        EditTotpSecret = _totpService.GenerateSecretKey();
+    }
+
+    [RelayCommand]
+    public async Task CheckPasswordPwnedAsync(KeyEntry? entry)
+    {
+        if (entry == null || string.IsNullOrEmpty(entry.SecretValue)) return;
+        StatusMessage = $"Проверка пароля «{entry.Title}» в Have I Been Pwned...";
+        try
+        {
+            var res = await _pwnedPasswordsService.CheckPasswordAsync(entry.SecretValue);
+            entry.PwnedBreachCount = res.BreachCount;
+            entry.PwnedLastCheckedAt = DateTimeOffset.UtcNow;
+            await _vaultService.SaveVaultAsync();
+            RefreshFilteredList();
+
+            if (res.IsBreached)
+            {
+                StatusMessage = $"⚠️ Внимание! Пароль для «{entry.Title}» обнаружен в {res.BreachCount:N0} утечках!";
+            }
+            else
+            {
+                StatusMessage = $"🛡️ Пароль для «{entry.Title}» безопасен (не найден в утечках).";
+            }
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Ошибка аудита пароля: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    public async Task AuditAllPasswordsAsync()
+    {
+        if (IsAuditingPasswords || _vaultService.CurrentContainer == null || _vaultService.CurrentContainer.Entries.Count == 0) return;
+        IsAuditingPasswords = true;
+        AuditProgress = 0;
+        AuditStatusText = "Проверка паролей по базе Have I Been Pwned...";
+        StatusMessage = "Запущен аудит безопасности паролей (k-Anonymity)...";
+
+        try
+        {
+            var prog = new Progress<double>(p =>
+            {
+                _dispatcherQueue?.TryEnqueue(() =>
+                {
+                    AuditProgress = p;
+                    AuditStatusText = $"Проверка базы: {p:F0}%";
+                });
+            });
+
+            var summary = await _pwnedPasswordsService.AuditVaultAsync(_vaultService.CurrentContainer.Entries, prog);
+            BreachedPasswordsCount = summary.BreachedEntriesCount;
+            await _vaultService.SaveVaultAsync();
+            RefreshFilteredList();
+
+            if (summary.BreachedEntriesCount > 0)
+            {
+                AuditStatusText = $"Найдено скомпрометированных: {summary.BreachedEntriesCount}";
+                StatusMessage = $"⚠️ Аудит завершён: обнаружено {summary.BreachedEntriesCount} скомпрометированных паролей!";
+            }
+            else
+            {
+                AuditStatusText = "Все пароли безопасны!";
+                StatusMessage = $"🛡️ Аудит завершён: все {summary.CleanEntriesCount} паролей безопасны.";
+            }
+        }
+        catch (Exception ex)
+        {
+            AuditStatusText = "Ошибка проверки утечек";
+            StatusMessage = $"Ошибка при аудите утечек: {ex.Message}";
+        }
+        finally
+        {
+            IsAuditingPasswords = false;
+        }
     }
 
     [RelayCommand]
@@ -784,6 +1045,15 @@ public partial class MainViewModel : ObservableObject
         _vaultService.Settings.Accent = SelectedAccent;
         _vaultService.Settings.Language = SelectedLanguage;
         _vaultService.Settings.FontFamily = SelectedFont;
+        if (SettingsWindowsHelloEnabled != _vaultService.Settings.WindowsHelloEnabled)
+        {
+            _vaultService.Settings.WindowsHelloEnabled = SettingsWindowsHelloEnabled;
+            if (!SettingsWindowsHelloEnabled)
+            {
+                await _windowsHelloService.DisableAsync();
+                IsWindowsHelloEnrolled = false;
+            }
+        }
         await _vaultService.SaveSettingsAsync();
         UpdateCloudStatus();
         IsSettingsDialogVisible = false;
@@ -888,6 +1158,13 @@ public partial class MainViewModel : ObservableObject
             UiAboutCert = LocalizationService.GetString("AboutCert", langCode);
             UiAboutDesc = LocalizationService.GetString("AboutDesc", langCode);
             UiAboutClose = LocalizationService.GetString("AboutClose", langCode);
+            UiWindowsHelloUnlock = LocalizationService.GetString("WindowsHelloUnlock", langCode);
+            UiWindowsHelloToggle = LocalizationService.GetString("WindowsHelloToggle", langCode);
+            UiTotpLabel = LocalizationService.GetString("TotpCode", langCode);
+            UiTotpCopyTooltip = LocalizationService.GetString("TotpCopyTooltip", langCode);
+            UiTotpSecretLabel = LocalizationService.GetString("TotpSecretLabel", langCode);
+            UiTotpGenerate = LocalizationService.GetString("TotpGenerate", langCode);
+            UiAuditPasswords = LocalizationService.GetString("PwnedAuditButton", langCode);
         }
         catch { }
     }

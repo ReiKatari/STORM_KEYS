@@ -22,6 +22,7 @@ public sealed partial class MainPage : Page
     public Visibility StringToVis(string? val) => string.IsNullOrWhiteSpace(val) ? Visibility.Collapsed : Visibility.Visible;
     public bool HasText(string? val) => !string.IsNullOrWhiteSpace(val);
     public bool Not(bool val) => !val;
+    public bool InvBool(bool val) => !val;
     public SolidColorBrush HexToBrush(string? hex) => BrushHelper.FromHex(hex);
 
     public List<string> CategoryFilterOptions { get; } = new()
@@ -189,6 +190,22 @@ public sealed partial class MainPage : Page
         if (sender is Button btn && btn.Tag is KeyEntry entry)
         {
             ViewModel.CopySecret(entry);
+        }
+    }
+
+    private void CopyTotp_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is KeyEntry entry)
+        {
+            ViewModel.CopyTotpCode(entry);
+        }
+    }
+
+    private void CheckPwned_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is KeyEntry entry)
+        {
+            _ = ViewModel.CheckPasswordPwnedCommand.ExecuteAsync(entry);
         }
     }
 

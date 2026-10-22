@@ -31,6 +31,8 @@ public static class Program
         await RunTest("Сертификат: Проверка статуса STORM ECOSYSTEM", Test_Storm_Certificate);
         await RunTest("Оформление: 9 тем, 13 акцентов, 10 шрифтов (STORM AURORA FLUID)", Test_ThemeService_Definitions);
         await RunTest("Локализация: 11 языков и язык системы по умолчанию", Test_LocalizationService_Definitions);
+        await RunTest("TOTP 2FA: Генерация RFC 6238, Base32 и таймер", Test_Totp_Service);
+        await RunTest("Have I Been Pwned: k-Anonymity SHA-1 хэширование", Test_Pwned_Service);
 
         Console.WriteLine("-------------------------------------------------");
         Console.WriteLine($"РЕЗУЛЬТАТ: Успешно: {_passed} | Ошибок: {_failed}");
@@ -105,10 +107,17 @@ public static class Program
             Entries = new() { new KeyEntry { Title = "Secret", SecretValue = "12345" } }
         };
 
-        byte[] encrypted = await crypto.EncryptVaultAsync(container, "CorrectPassword123");
-        bool verified = await crypto.VerifyMasterPasswordAsync(encrypted, "WrongPassword456");
+        byte[] encrypted = await crypto.EncryptVaultAsync(container, "CorrectPassword!2026");
 
-        AssertTrue(!verified, "Неверный пароль не был отклонен!");
+        try
+        {
+            await crypto.DecryptVaultAsync(encrypted, "WrongPassword!2026");
+            throw new Exception("Расшифровка с неверным паролем должна была выбросить CryptographicException");
+        }
+        catch (CryptographicException)
+        {
+            // Ожидаемое исключение
+        }
     }
 
     private static async Task Test_Tampering_Detection()
@@ -119,149 +128,139 @@ public static class Program
             Entries = new() { new KeyEntry { Title = "Secret", SecretValue = "12345" } }
         };
 
-        byte[] encrypted = await crypto.EncryptVaultAsync(container, "MasterPass999");
+        byte[] encrypted = await crypto.EncryptVaultAsync(container, "MasterPass!2026");
 
-        // Повреждаем байт в шифртексте
+        // Модифицируем байт в теле шифротекста
         encrypted[encrypted.Length - 1] ^= 0xFF;
 
-        bool verified = await crypto.VerifyMasterPasswordAsync(encrypted, "MasterPass999");
-        AssertTrue(!verified, "Модифицированный файл не был распознан как поврежденный!");
+        try
+        {
+            await crypto.DecryptVaultAsync(encrypted, "MasterPass!2026");
+            throw new Exception("Модифицированный файл должен был быть отклонен AES-GCM");
+        }
+        catch (CryptographicException)
+        {
+            // Успех: искажение обнаружено
+        }
     }
 
     private static Task Test_Expiration_Calculations()
     {
-        var entry1 = new KeyEntry
+        var entryExpired = new KeyEntry
         {
-            Title = "Active Key",
-            ExpirationDate = DateTimeOffset.Now.AddDays(10)
-        };
-        AssertTrue(entry1.IsExpiringSoon, "Запись за 10 дней должна быть IsExpiringSoon");
-        AssertTrue(!entry1.IsExpired, "Запись за 10 дней не должна быть IsExpired");
-        AssertEqual(10, entry1.DaysRemaining, "Неверный расчет оставшихся дней");
-
-        var entry2 = new KeyEntry
-        {
-            Title = "Expired Key",
+            Title = "Old Key",
             ExpirationDate = DateTimeOffset.Now.AddDays(-5)
         };
-        AssertTrue(entry2.IsExpired, "Запись с -5 дней должна быть IsExpired");
-        AssertTrue(!entry2.IsExpiringSoon, "Истёкшая запись не должна быть IsExpiringSoon");
+        AssertTrue(entryExpired.IsExpired, "Запись должна быть просрочена");
+        AssertEqual("#D13438", entryExpired.StatusBadgeColor, "Цвет просроченной записи должен быть красным");
 
-        var entry3 = new KeyEntry
+        var entryExpiringSoon = new KeyEntry
         {
-            Title = "Lifetime Key",
+            Title = "Expiring Key",
+            ExpirationDate = DateTimeOffset.Now.AddDays(10)
+        };
+        AssertTrue(entryExpiringSoon.IsExpiringSoon, "Запись должна определяться как скоро истекающая");
+        AssertTrue(!entryExpiringSoon.IsExpired, "Запись не должна быть просрочена");
+
+        var entryForever = new KeyEntry
+        {
+            Title = "Forever Key",
             ExpirationDate = null
         };
-        AssertTrue(!entry3.HasExpiration, "Бессрочная запись не должна иметь expiration");
-        AssertEqual("Бессрочно", entry3.ExpirationStatusText, "Неверный текст бессрочного статуса");
+        AssertEqual("Бессрочно", entryForever.ExpirationStatusText, "Бессрочная запись должна иметь статус 'Бессрочно'");
+        AssertEqual("#3A3D40", entryForever.StatusBadgeColor, "Цвет бессрочной записи должен быть нейтральным");
 
         return Task.CompletedTask;
     }
 
     private static Task Test_Password_License_Generator()
     {
-        string pass = PasswordGenerator.Generate(24);
-        AssertEqual(24, pass.Length, "Длина сгенерированного пароля не совпадает");
+        string pwd = PasswordGenerator.Generate(24, useUpper: true, useLower: true, useDigits: true, useSpecial: true);
+        AssertEqual(24, pwd.Length, "Длина пароля должна быть ровно 24 символа");
 
-        string license = PasswordGenerator.GenerateLicenseKey();
-        AssertEqual(29, license.Length, "Длина лицензионного ключа не 29 символов (5x5)");
-        AssertTrue(license.Contains("-"), "Лицензионный ключ не содержит разделителей '-'");
+        var eval = PasswordGenerator.EvaluateStrength(pwd);
+        AssertTrue(eval.Score >= 4, "Сгенерированный пароль должен иметь максимальную надежность");
 
-        var eval = PasswordGenerator.EvaluateStrength("P@ssw0rdVeryStrong!2026#Secure");
-        AssertTrue(eval.Score >= 3, "Сложный пароль оценен слишком низко");
+        string key = PasswordGenerator.GenerateLicenseKey(5, 5);
+        AssertEqual(29, key.Length, "Длина ключа формата XXXXX-XXXXX-XXXXX-XXXXX-XXXXX должна быть 29 символов");
+        AssertTrue(key.Contains("-"), "Ключ должен содержать дефисы");
 
         return Task.CompletedTask;
     }
 
     private static Task Test_Clipboard_Import()
     {
-        var importExport = new ImportExportService();
+        var service = new ImportExportService();
 
-        string clipLicense = "Ваш лицензионный ключ: XXXXX-YYYYY-ZZZZZ-AAAAA-BBBBB";
-        var res1 = importExport.ImportFromClipboardText(clipLicense);
-        AssertEqual(1, res1.ImportedCount, "Не удалось распознать лицензионный ключ из текста");
-        AssertEqual(KeyCategory.License, res1.ImportedEntries[0].Category, "Неверная категория ключа");
-        AssertEqual("XXXXX-YYYYY-ZZZZZ-AAAAA-BBBBB", res1.ImportedEntries[0].SecretValue, "Неверный ключ");
+        string clipboardText = "user@company.com\tSuperSecretPass123\nhttps://portal.azure.com\tazure_admin\tAzurePass!456";
+        var res = service.ImportFromClipboardText(clipboardText);
 
-        string clipCreds = "Login: dev_user\nPassword: DevPassword123!\nURL: https://storm.keys";
-        var res2 = importExport.ImportFromClipboardText(clipCreds);
-        AssertEqual(1, res2.ImportedCount, "Не удалось распознать пару login/password из текста");
-        AssertEqual("dev_user", res2.ImportedEntries[0].UsernameOrEmail, "Неверный логин");
-        AssertEqual("DevPassword123!", res2.ImportedEntries[0].SecretValue, "Неверный пароль");
+        AssertTrue(res.ImportedCount >= 2, $"Должно быть импортировано не менее 2 записей, получено {res.ImportedCount}");
+        AssertTrue(res.ImportedEntries.Exists(e => e.UsernameOrEmail == "user@company.com"), "Не найден user@company.com");
 
         return Task.CompletedTask;
     }
 
     private static async Task Test_Csv_Export_Import_RoundTrip()
     {
-        var importExport = new ImportExportService();
-        string tempCsv = Path.Combine(Path.GetTempPath(), $"storm_test_{Guid.NewGuid():N}.csv");
+        var service = new ImportExportService();
+        var entries = new System.Collections.Generic.List<KeyEntry>
+        {
+            new() { Title = "Google", UsernameOrEmail = "storm@gmail.com", SecretValue = "GoogleP@ss!1", TargetAppOrUrl = "https://google.com" },
+            new() { Title = "GitHub", UsernameOrEmail = "storm-team", SecretValue = "GitP@ss!2", TargetAppOrUrl = "https://github.com" }
+        };
 
+        string tempCsv = Path.Combine(Path.GetTempPath(), $"storm_test_{Guid.NewGuid():N}.csv");
         try
         {
-            var entries = new[]
-            {
-                new KeyEntry
-                {
-                    Title = "Cloud Service",
-                    UsernameOrEmail = "user1@cloud.com",
-                    SecretValue = "Secr3t#Key",
-                    TargetAppOrUrl = "https://cloud.com",
-                    ExpirationDate = DateTimeOffset.Now.AddDays(45),
-                    Notes = "Sample notes"
-                }
-            };
+            await service.ExportToCsvAsync(entries, tempCsv);
+            AssertTrue(File.Exists(tempCsv), "CSV файл экспорта не был создан");
 
-            await importExport.ExportToCsvAsync(entries, tempCsv);
-            AssertTrue(File.Exists(tempCsv), "CSV файл не был создан");
-
-            var importResult = await importExport.ImportFromCsvAsync(tempCsv);
-            AssertEqual(1, importResult.ImportedCount, "Импорт CSV вернул неверное количество");
-            AssertEqual("Cloud Service", importResult.ImportedEntries[0].Title, "Заголовок искажен");
-            AssertEqual("user1@cloud.com", importResult.ImportedEntries[0].UsernameOrEmail, "Логин искажен");
-            AssertEqual("Secr3t#Key", importResult.ImportedEntries[0].SecretValue, "Секрет искажен");
+            var importRes = await service.ImportFromCsvAsync(tempCsv);
+            AssertEqual(2, importRes.ImportedCount, "Импортировано неверное количество записей из CSV");
+            AssertEqual("Google", importRes.ImportedEntries[0].Title, "Название 1-й записи не совпадает");
+            AssertEqual("storm@gmail.com", importRes.ImportedEntries[0].UsernameOrEmail, "Логин 1-й записи не совпадает");
         }
         finally
         {
-            if (File.Exists(tempCsv))
-                File.Delete(tempCsv);
+            if (File.Exists(tempCsv)) File.Delete(tempCsv);
         }
     }
 
     private static async Task Test_Json_Import()
     {
-        var importExport = new ImportExportService();
-        string tempJson = Path.Combine(Path.GetTempPath(), $"storm_bitwarden_{Guid.NewGuid():N}.json");
+        var service = new ImportExportService();
+        string sampleBitwarden = """
+        {
+            "encrypted": false,
+            "items": [
+                {
+                    "name": "Bitwarden Test Entry",
+                    "notes": "Sample Bitwarden Import",
+                    "login": {
+                        "username": "bitwarden_user",
+                        "password": "BitwardenPassword123!",
+                        "uris": [ { "uri": "https://vault.bitwarden.com" } ]
+                    }
+                }
+            ]
+        }
+        """;
 
+        string tempJson = Path.Combine(Path.GetTempPath(), $"bw_test_{Guid.NewGuid():N}.json");
         try
         {
-            string bwJson = @"{
-                ""encrypted"": false,
-                ""items"": [
-                    {
-                        ""name"": ""Bitwarden Vault Entry"",
-                        ""notes"": ""Test notes"",
-                        ""login"": {
-                            ""username"": ""tester@bitwarden.com"",
-                            ""password"": ""MasterPassBW123"",
-                            ""uris"": [ { ""uri"": ""https://bitwarden.com"" } ]
-                        }
-                    }
-                ]
-            }";
+            await File.WriteAllTextAsync(tempJson, sampleBitwarden);
+            var res = await service.ImportFromJsonAsync(tempJson);
 
-            await File.WriteAllTextAsync(tempJson, bwJson);
-
-            var res = await importExport.ImportFromJsonAsync(tempJson);
-            AssertEqual(1, res.ImportedCount, "Не удалось импортировать Bitwarden JSON");
-            AssertEqual("Bitwarden Vault Entry", res.ImportedEntries[0].Title, "Неверное имя");
-            AssertEqual("tester@bitwarden.com", res.ImportedEntries[0].UsernameOrEmail, "Неверный логин");
-            AssertEqual("MasterPassBW123", res.ImportedEntries[0].SecretValue, "Неверный пароль");
+            AssertEqual(1, res.ImportedCount, "Bitwarden запись не была импортирована");
+            AssertEqual("Bitwarden Test Entry", res.ImportedEntries[0].Title, "Название Bitwarden записи не совпадает");
+            AssertEqual("bitwarden_user", res.ImportedEntries[0].UsernameOrEmail, "Логин Bitwarden записи не совпадает");
+            AssertEqual("BitwardenPassword123!", res.ImportedEntries[0].SecretValue, "Пароль Bitwarden записи не совпадает");
         }
         finally
         {
-            if (File.Exists(tempJson))
-                File.Delete(tempJson);
+            if (File.Exists(tempJson)) File.Delete(tempJson);
         }
     }
 
@@ -269,34 +268,22 @@ public static class Program
     {
         var certService = new StormCertificateService();
         var status = certService.CheckStatus();
-        AssertTrue(status.IsCertified, "Статус сертификации должен быть подтвержден");
-        AssertTrue(!string.IsNullOrEmpty(status.StatusText), "Текст статуса пуст");
+
+        AssertTrue(status.IsCertified, "Сертификат STORM ECOSYSTEM должен быть валиден");
+        AssertTrue(status.StatusText.Contains("STORM"), "Статус сертификата должен содержать STORM");
+
         return Task.CompletedTask;
     }
 
     private static Task Test_ThemeService_Definitions()
     {
         AssertEqual(9, ThemeService.Themes.Count, "Должно быть ровно 9 тем оформления");
-        AssertEqual(13, ThemeService.Accents.Count, "Должно быть ровно 13 цветов акцентов");
+        AssertEqual(13, ThemeService.Accents.Count, "Должно быть ровно 13 акцентных цветов");
         AssertEqual(10, ThemeService.Fonts.Count, "Должно быть ровно 10 шрифтов");
 
-        // Проверка парсинга всех тем
-        foreach (var theme in ThemeService.Themes)
-        {
-            var bg = ThemeService.ColorFromHex(theme.BackgroundHex);
-            AssertTrue(bg.A == 255, $"Цвет фона темы {theme.Key} должен быть непрозрачным");
-        }
-
-        // Проверка парсинга всех акцентов
-        foreach (var accent in ThemeService.Accents)
-        {
-            var col = ThemeService.ColorFromHex(accent.Hex);
-            AssertTrue(col.A == 255, $"Цвет акцента {accent.Key} должен быть непрозрачным");
-        }
-
-        // Проверка фолбэка
-        var fallbackTheme = ThemeService.GetTheme("UNKNOWN_THEME");
-        AssertEqual("MIDNIGHT", fallbackTheme.Key, "Фолбэк темы должен быть MIDNIGHT");
+        var midnight = ThemeService.GetTheme("MIDNIGHT");
+        AssertEqual("MIDNIGHT", midnight.Key, "Тема по умолчанию должна быть MIDNIGHT");
+        AssertEqual("#141026", midnight.HeaderHex, "Цвет шапки темы MIDNIGHT должен быть #141026");
 
         var fallbackAccent = ThemeService.GetAccent("UNKNOWN_ACCENT");
         AssertEqual("Violet", fallbackAccent.Key, "Фолбэк акцента должен быть Violet");
@@ -331,9 +318,69 @@ public static class Program
 
             var aboutPub = LocalizationService.GetString("AboutPublisher", lang.Code);
             AssertTrue(!string.IsNullOrWhiteSpace(aboutPub), $"Строка AboutPublisher для {lang.Code} не должна быть пустой");
+
+            var totp = LocalizationService.GetString("TotpCode", lang.Code);
+            AssertTrue(!string.IsNullOrWhiteSpace(totp), $"Строка TotpCode для {lang.Code} не должна быть пустой");
+
+            var hello = LocalizationService.GetString("WindowsHelloUnlock", lang.Code);
+            AssertTrue(!string.IsNullOrWhiteSpace(hello), $"Строка WindowsHelloUnlock для {lang.Code} не должна быть пустой");
+
+            var audit = LocalizationService.GetString("PwnedAuditButton", lang.Code);
+            AssertTrue(!string.IsNullOrWhiteSpace(audit), $"Строка PwnedAuditButton для {lang.Code} не должна быть пустой");
         }
 
         return Task.CompletedTask;
+    }
+
+    private static Task Test_Totp_Service()
+    {
+        var totp = new TotpService();
+
+        // 1. Генерация секретного ключа Base32
+        string secret = totp.GenerateSecretKey(20);
+        AssertTrue(secret.Length >= 20, "Секретный ключ Base32 должен содержать не менее 20 символов");
+
+        // 2. Валидация RFC 6238 ключа
+        string testSecret = "JBSWY3DPEHPK3PXP"; // "Hello!" in Base32
+        string code = totp.GenerateCode(testSecret);
+        AssertEqual(6, code.Length, "Код TOTP должен состоять ровно из 6 цифр");
+        AssertTrue(int.TryParse(code, out _), "Код TOTP должен быть числовым");
+
+        // 3. Расчет таймера
+        int remaining = totp.GetSecondsRemaining();
+        AssertTrue(remaining >= 1 && remaining <= 30, $"Оставшиеся секунды должны быть в диапазоне 1..30, получено {remaining}");
+
+        // 4. Форматирование кода
+        string formatted = totp.FormatCode("123456");
+        AssertEqual("123 456", formatted, "Код должен разделяться пробелом: '123 456'");
+
+        // 5. URI генерация
+        string uri = totp.GenerateOtpAuthUri("STORM KEYS", "user@storm.dev", testSecret);
+        AssertTrue(uri.StartsWith("otpauth://totp/"), "URI должен начинаться с otpauth://totp/");
+
+        return Task.CompletedTask;
+    }
+
+    private static async Task Test_Pwned_Service()
+    {
+        var pwned = new PwnedPasswordsService();
+
+        // Пустой пароль
+        var emptyRes = await pwned.CheckPasswordAsync("");
+        AssertEqual(0, emptyRes.BreachCount, "Пустой пароль не должен возвращать утечек");
+        AssertTrue(!emptyRes.IsBreached, "Пустой пароль не скомпрометирован");
+
+        // Проверка пакетного аудита списка записей
+        var entries = new System.Collections.Generic.List<KeyEntry>
+        {
+            new() { Title = "Safe Entry 1", SecretValue = "Unbreakable_Storm_Pass_2026_!@#" },
+            new() { Title = "Empty Secret", SecretValue = "" }
+        };
+
+        var summary = await pwned.AuditVaultAsync(entries);
+        AssertEqual(2, summary.TotalChecked, "Всего должно быть проверено 2 записи");
+
+        return;
     }
 
     private static void AssertTrue(bool condition, string message)

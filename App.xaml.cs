@@ -15,6 +15,9 @@ public partial class App : Application
     public static INotificationService NotificationService { get; private set; } = null!;
     public static IStormCertificateService CertificateService { get; private set; } = null!;
     public static IUpdateService UpdateService { get; private set; } = null!;
+    public static ITotpService TotpService { get; private set; } = null!;
+    public static IWindowsHelloService WindowsHelloService { get; private set; } = null!;
+    public static IPwnedPasswordsService PwnedPasswordsService { get; private set; } = null!;
     public static MainViewModel ViewModel { get; private set; } = null!;
 
     [System.Runtime.InteropServices.DllImport("shell32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode, SetLastError = true)]
@@ -37,6 +40,9 @@ public partial class App : Application
         NotificationService = new NotificationService();
         CertificateService = new StormCertificateService();
         UpdateService = new UpdateService();
+        TotpService = new TotpService();
+        WindowsHelloService = new WindowsHelloService();
+        PwnedPasswordsService = new PwnedPasswordsService();
 
         ViewModel = new MainViewModel(
             VaultService,
@@ -44,7 +50,10 @@ public partial class App : Application
             ImportExportService,
             NotificationService,
             CertificateService,
-            UpdateService);
+            UpdateService,
+            TotpService,
+            WindowsHelloService,
+            PwnedPasswordsService);
     }
 
     protected override async void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)

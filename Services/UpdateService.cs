@@ -20,7 +20,7 @@ public interface IUpdateService
 public sealed class UpdateService : IUpdateService
 {
     private const string GitHubApiUrl = "https://api.github.com/repos/ReiKatari/STORM_KEYS/releases/latest";
-    public static readonly Version CurrentVersion = new(1, 0, 0);
+    public static readonly Version CurrentVersion = new(1, 0, 1);
 
     private readonly HttpClient _httpClient;
 
@@ -30,7 +30,7 @@ public sealed class UpdateService : IUpdateService
         {
             Timeout = TimeSpan.FromSeconds(6)
         };
-        _httpClient.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("STORM-KEYS", "1.0.0"));
+        _httpClient.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("STORM-KEYS", "1.0.1"));
     }
 
     public async Task<UpdateInfo?> CheckForUpdatesAsync(bool silent = true)

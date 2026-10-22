@@ -46,8 +46,8 @@ public sealed partial class MainWindow : Window
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
 
-        Title = "STORM KEYS";
-        AppWindow.Title = "STORM KEYS";
+        Title = "STORM KEYS 1.0.1";
+        AppWindow.Title = "STORM KEYS 1.0.1";
 
         // Получаем дескриптор Win32 окна
         var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(this);

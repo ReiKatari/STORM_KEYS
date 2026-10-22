@@ -199,6 +199,83 @@ public class ImportExportService : IImportExportService
 
         string[] lines = text.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
 
+        // Проверяем табличный формат с табуляцией (\t)
+        bool hasTabs = false;
+        foreach (var l in lines)
+        {
+            if (l.Contains('\t'))
+            {
+                hasTabs = true;
+                break;
+            }
+        }
+
+        if (hasTabs)
+        {
+            foreach (var rawLine in lines)
+            {
+                var parts = rawLine.Split('\t');
+                if (parts.Length >= 2)
+                {
+                    string p0 = parts[0].Trim();
+                    string p1 = parts[1].Trim();
+                    string p2 = parts.Length > 2 ? parts[2].Trim() : "";
+
+                    string rowTitle = "Запись из буфера";
+                    string rowUser = "";
+                    string rowPass = "";
+                    string rowUrl = "";
+
+                    if (parts.Length == 2)
+                    {
+                        if (p0.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                        {
+                            rowUrl = p0;
+                            rowPass = p1;
+                            try { rowTitle = new Uri(p0).Host; } catch { }
+                        }
+                        else
+                        {
+                            rowUser = p0;
+                            rowPass = p1;
+                        }
+                    }
+                    else
+                    {
+                        if (p0.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                        {
+                            rowUrl = p0;
+                            rowUser = p1;
+                            rowPass = p2;
+                            try { rowTitle = new Uri(p0).Host; } catch { }
+                        }
+                        else
+                        {
+                            rowTitle = p0;
+                            rowUser = p1;
+                            rowPass = p2;
+                        }
+                    }
+
+                    if (!string.IsNullOrEmpty(rowUser) || !string.IsNullOrEmpty(rowPass))
+                    {
+                        result.ImportedEntries.Add(new KeyEntry
+                        {
+                            Title = string.IsNullOrEmpty(rowTitle) ? "Запись из буфера" : rowTitle,
+                            UsernameOrEmail = rowUser,
+                            SecretValue = rowPass,
+                            TargetAppOrUrl = rowUrl,
+                            Category = KeyCategory.Account
+                        });
+                        result.ImportedCount++;
+                    }
+                }
+            }
+
+            if (result.ImportedCount > 0)
+                return result;
+        }
+
         // Проверяем паттерн "Ключ активации": XXXXX-XXXXX-XXXXX-XXXXX-XXXXX (25 символов)
         var licenseRegex = new Regex(@"([A-Z0-9]{4,5}-[A-Z0-9]{4,5}-[A-Z0-9]{4,5}-[A-Z0-9]{4,5}(-[A-Z0-9]{4,5})?)", RegexOptions.IgnoreCase);
         var match = licenseRegex.Match(text);

@@ -455,7 +455,7 @@
                                     </Button>
                                 </StackPanel>
 
-                                <!-- Секрет (Пароль/Ключ) и Срок действия -->
+                                <!-- Секрет (Пароль/Ключ), 2FA TOTP и Срок действия -->
                                 <StackPanel
                                     Grid.Column="3"
                                     VerticalAlignment="Center"
@@ -479,18 +479,87 @@
                                         </Button>
                                     </StackPanel>
 
-                                    <!-- Статус срока действия -->
-                                    <Border
-                                        HorizontalAlignment="Left"
-                                        Padding="6,2"
-                                        Background="{ThemeResource LayerOnMicaBaseAltFillColorDefaultBrush}"
-                                        BorderThickness="1"
-                                        CornerRadius="4">
-                                        <TextBlock
-                                            FontSize="11"
-                                            FontWeight="SemiBold"
-                                            Text="{Binding ExpirationStatusText}" />
-                                    </Border>
+                                    <!-- 2FA / TOTP Код с живым 30-секундным таймером -->
+                                    <StackPanel Orientation="Horizontal" Spacing="6" Visibility="{Binding TotpVisibility}">
+                                        <Border
+                                            Background="{ThemeResource LayerOnMicaBaseAltFillColorDefaultBrush}"
+                                            BorderBrush="{ThemeResource AccentFillColorDefaultBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="4"
+                                            Padding="6,2">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <FontIcon
+                                                    Glyph="&#xE8D7;"
+                                                    FontFamily="Segoe Fluent Icons"
+                                                    FontSize="11"
+                                                    Foreground="{ThemeResource AccentFillColorDefaultBrush}" />
+                                                <TextBlock
+                                                    Text="{Binding FormattedTotpCode}"
+                                                    FontFamily="Consolas"
+                                                    FontSize="12"
+                                                    FontWeight="Bold"
+                                                    Foreground="{ThemeResource AccentFillColorDefaultBrush}" />
+                                                <TextBlock
+                                                    Text="{Binding TotpCountdownText}"
+                                                    FontSize="10"
+                                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                    VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Border>
+                                        <Button
+                                            Padding="5,3"
+                                            Click="CopyTotp_Click"
+                                            Tag="{Binding}"
+                                            ToolTipService.ToolTip="{Binding ElementName=RootPage, Path=ViewModel.UiTotpCopyTooltip}">
+                                            <FontIcon
+                                                FontFamily="Segoe Fluent Icons"
+                                                FontSize="11"
+                                                Glyph="&#xE8C8;" />
+                                        </Button>
+                                    </StackPanel>
+
+                                    <!-- Бейджи статуса срока и аудита утечек -->
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <!-- Статус срока действия -->
+                                        <Border
+                                            Padding="6,2"
+                                            Background="{ThemeResource LayerOnMicaBaseAltFillColorDefaultBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="4">
+                                            <TextBlock
+                                                FontSize="11"
+                                                FontWeight="SemiBold"
+                                                Text="{Binding ExpirationStatusText}" />
+                                        </Border>
+
+                                        <!-- Бейдж утечки пароля (Breached) -->
+                                        <Border
+                                            Padding="6,2"
+                                            Background="#25D13438"
+                                            BorderBrush="#D13438"
+                                            BorderThickness="1"
+                                            CornerRadius="4"
+                                            Visibility="{Binding PwnedBreachedVisibility}">
+                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                <FontIcon Glyph="&#xE7BA;" FontFamily="Segoe Fluent Icons" FontSize="10" Foreground="#D13438" />
+                                                <TextBlock FontSize="11" FontWeight="Bold" Foreground="#D13438" Text="{Binding PwnedStatusText}" />
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- Бейдж безопасности пароля (Safe) -->
+                                        <Border
+                                            Padding="6,2"
+                                            Background="#25107C41"
+                                            BorderBrush="#107C41"
+                                            BorderThickness="1"
+                                            CornerRadius="4"
+                                            Visibility="{Binding PwnedSafeVisibility}">
+                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                <FontIcon Glyph="&#xE73E;" FontFamily="Segoe Fluent Icons" FontSize="10" Foreground="#107C41" />
+                                                <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="#107C41" Text="Безопасен" />
+                                            </StackPanel>
+                                        </Border>
+                                    </StackPanel>
                                 </StackPanel>
 
                                 <!-- Действия: Подсказка, Редактировать, Удалить -->
@@ -500,6 +569,19 @@
                                     Orientation="Horizontal"
                                     Spacing="6">
                                     <!-- Стилизованная подсказка (TeachingTip) -->
+                                    <!-- Проверка пароля на утечки (Have I Been Pwned) -->
+                                    <Button
+                                        Padding="8,6"
+                                        Click="CheckPwned_Click"
+                                        Tag="{Binding}"
+                                        ToolTipService.ToolTip="Проверить в базе утечек Have I Been Pwned">
+                                        <FontIcon
+                                            FontFamily="Segoe Fluent Icons"
+                                            FontSize="14"
+                                            Foreground="{ThemeResource AccentFillColorDefaultBrush}"
+                                            Glyph="&#xE72C;" />
+                                    </Button>
+
                                     <Button
                                         Padding="8,6"
                                         Click="ShowCardDetails_Click"
@@ -650,6 +732,31 @@
                                 Foreground="{x:Bind HexToBrush(ViewModel.SecretStrengthColor), Mode=OneWay}"
                                 Text="{x:Bind ViewModel.SecretStrengthLabel, Mode=OneWay}" />
                         </StackPanel>
+
+                        <!-- Двухфакторная аутентификация TOTP (2FA) -->
+                        <Grid ColumnSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <TextBox
+                                Grid.Column="0"
+                                Header="{x:Bind ViewModel.UiTotpSecretLabel, Mode=OneWay}"
+                                PlaceholderText="Например: JBSWY3DPEHPK3PXP..."
+                                Text="{x:Bind ViewModel.EditTotpSecret, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                            <Button
+                                Grid.Column="1"
+                                VerticalAlignment="Bottom"
+                                Command="{x:Bind ViewModel.GenerateTotpSecretCommand}"
+                                ToolTipService.ToolTip="{x:Bind ViewModel.UiTotpGenerate, Mode=OneWay}">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE72C;" />
+                                    <TextBlock Text="Ключ 2FA" />
+                                </StackPanel>
+                            </Button>
+                        </Grid>
 
                         <!-- URL или программа -->
                         <TextBox
@@ -833,6 +940,31 @@
                             HorizontalAlignment="Stretch"
                             ItemsSource="{x:Bind AutoLockOptions}"
                             SelectedIndex="{x:Bind AutoLockIndex, Mode=TwoWay}" />
+                    </StackPanel>
+
+                    <!-- Windows Hello Биометрия -->
+                    <ToggleSwitch
+                        Header="{x:Bind ViewModel.UiWindowsHelloToggle, Mode=OneWay}"
+                        IsEnabled="{x:Bind ViewModel.IsWindowsHelloAvailable, Mode=OneWay}"
+                        IsOn="{x:Bind ViewModel.SettingsWindowsHelloEnabled, Mode=TwoWay}" />
+
+                    <!-- Аудит скомпрометированных паролей (Have I Been Pwned) -->
+                    <StackPanel Spacing="6">
+                        <TextBlock FontSize="12" FontWeight="SemiBold" Text="{x:Bind ViewModel.UiAuditPasswords, Mode=OneWay}" Foreground="{x:Bind ViewModel.CurrentTextPrimaryBrush, Mode=OneWay}" />
+                        <Grid ColumnSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" VerticalAlignment="Center" FontSize="11" Foreground="{x:Bind ViewModel.CurrentTextSecondaryBrush, Mode=OneWay}" Text="{x:Bind ViewModel.AuditStatusText, Mode=OneWay}" TextTrimming="CharacterEllipsis" />
+                            <Button Grid.Column="1" Command="{x:Bind ViewModel.AuditAllPasswordsCommand}" IsEnabled="{x:Bind InvBool(ViewModel.IsAuditingPasswords), Mode=OneWay}">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <FontIcon Glyph="&#xE72C;" FontFamily="Segoe Fluent Icons" FontSize="12" />
+                                    <TextBlock Text="Проверить" />
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+                        <ProgressBar Value="{x:Bind ViewModel.AuditProgress, Mode=OneWay}" Maximum="100" Visibility="{x:Bind BoolToVis(ViewModel.IsAuditingPasswords), Mode=OneWay}" />
                     </StackPanel>
 
                     <!-- Статус сертификата STORM -->
@@ -1101,6 +1233,20 @@
                             Command="{x:Bind ViewModel.UnlockOrCreateVaultCommand}"
                             Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}">
                             <TextBlock FontWeight="SemiBold" Text="Разблокировать хранилище" />
+                        </Button>
+
+                        <!-- Кнопка Windows Hello (биометрия / PIN) -->
+                        <Button
+                            HorizontalAlignment="Stretch"
+                            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{ThemeResource AccentFillColorDefaultBrush}"
+                            BorderThickness="1"
+                            Command="{x:Bind ViewModel.UnlockWithWindowsHelloCommand}"
+                            Visibility="{x:Bind BoolToVis(ViewModel.IsWindowsHelloEnrolled), Mode=OneWay}">
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8">
+                                <FontIcon Glyph="&#xE8D7;" FontFamily="Segoe Fluent Icons" Foreground="{ThemeResource AccentFillColorDefaultBrush}" FontSize="16" />
+                                <TextBlock FontWeight="SemiBold" Text="{x:Bind ViewModel.UiWindowsHelloUnlock, Mode=OneWay}" />
+                            </StackPanel>
                         </Button>
                     </StackPanel>
 

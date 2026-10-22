@@ -109,10 +109,18 @@ public static class LocalizationService
             ["TooltipGenSoftwareKey"] = "Сгенерировать формат ключа ПО (XXXXX-XXXXX...)",
             ["AboutTitle"] = "О программе STORM KEYS",
             ["AboutPublisher"] = "Проверенный издатель: STORM TEAM",
-            ["AboutVersion"] = "Версия 1.0.0",
+            ["AboutVersion"] = "Версия 1.0.1",
             ["AboutCert"] = "Сертификат: STORM INTEGRATED PLATFORM",
             ["AboutDesc"] = "Защищённое хранилище цифровых ключей, паролей и лицензий с шифрованием AES-256-GCM и деривацией Argon2id.",
             ["AboutClose"] = "Закрыть"
+        ,
+            ["WindowsHelloUnlock"] = "Войти через Windows Hello",
+            ["WindowsHelloToggle"] = "Биометрия Windows Hello (отпечаток / лицо / PIN)",
+            ["TotpCode"] = "Код 2FA (TOTP)",
+            ["TotpCopyTooltip"] = "Скопировать код 2FA",
+            ["TotpSecretLabel"] = "Секретный ключ 2FA (Base32)",
+            ["TotpGenerate"] = "Сгенерировать ключ 2FA",
+            ["PwnedAuditButton"] = "Проверить базу паролей на утечки",
         },
         ["en"] = new()
         {
@@ -171,10 +179,18 @@ public static class LocalizationService
             ["TooltipGenSoftwareKey"] = "Generate software license key format (XXXXX-XXXXX...)",
             ["AboutTitle"] = "About STORM KEYS",
             ["AboutPublisher"] = "Verified Publisher: STORM TEAM",
-            ["AboutVersion"] = "Version 1.0.0",
+            ["AboutVersion"] = "Version 1.0.1",
             ["AboutCert"] = "Certificate: STORM INTEGRATED PLATFORM",
             ["AboutDesc"] = "Secure digital vault for keys, passwords and licenses with AES-256-GCM encryption and Argon2id KDF.",
             ["AboutClose"] = "Close"
+        ,
+            ["WindowsHelloUnlock"] = "Unlock with Windows Hello",
+            ["WindowsHelloToggle"] = "Windows Hello biometrics (fingerprint / face / PIN)",
+            ["TotpCode"] = "2FA Code (TOTP)",
+            ["TotpCopyTooltip"] = "Copy 2FA code",
+            ["TotpSecretLabel"] = "2FA Secret Key (Base32)",
+            ["TotpGenerate"] = "Generate 2FA Key",
+            ["PwnedAuditButton"] = "Check passwords for data breaches",
         },
         ["de"] = new()
         {
@@ -233,10 +249,18 @@ public static class LocalizationService
             ["TooltipGenSoftwareKey"] = "Software-Lizenzschlüsselformat generieren (XXXXX-XXXXX...)",
             ["AboutTitle"] = "Über STORM KEYS",
             ["AboutPublisher"] = "Verifizierter Herausgeber: STORM TEAM",
-            ["AboutVersion"] = "Version 1.0.0",
+            ["AboutVersion"] = "Version 1.0.1",
             ["AboutCert"] = "Zertifikat: STORM INTEGRATED PLATFORM",
             ["AboutDesc"] = "Sicherer digitaler Tresor für Schlüssel, Passwörter und Lizenzen mit AES-256-GCM-Verschlüsselung und Argon2id KDF.",
             ["AboutClose"] = "Schließen"
+        ,
+            ["WindowsHelloUnlock"] = "Mit Windows Hello entsperren",
+            ["WindowsHelloToggle"] = "Windows Hello Biometrie (Fingerabdruck / Gesicht / PIN)",
+            ["TotpCode"] = "2FA-Code (TOTP)",
+            ["TotpCopyTooltip"] = "2FA-Code kopieren",
+            ["TotpSecretLabel"] = "2FA-Geheimschlüssel (Base32)",
+            ["TotpGenerate"] = "2FA-Schlüssel generieren",
+            ["PwnedAuditButton"] = "Passwörter auf Datenlecks prüfen",
         },
         ["fr"] = new()
         {
@@ -295,10 +319,18 @@ public static class LocalizationService
             ["TooltipGenSoftwareKey"] = "Générer un format de clé de licence (XXXXX-XXXXX...)",
             ["AboutTitle"] = "À propos de STORM KEYS",
             ["AboutPublisher"] = "Éditeur vérifié : STORM TEAM",
-            ["AboutVersion"] = "Version 1.0.0",
+            ["AboutVersion"] = "Version 1.0.1",
             ["AboutCert"] = "Certificat : STORM INTEGRATED PLATFORM",
             ["AboutDesc"] = "Coffre-fort numérique sécurisé pour clés, mots de passe et licences avec chiffrement AES-256-GCM et dérivation Argon2id.",
             ["AboutClose"] = "Fermer"
+        ,
+            ["WindowsHelloUnlock"] = "Déverrouiller avec Windows Hello",
+            ["WindowsHelloToggle"] = "Biométrie Windows Hello (empreinte / visage / code PIN)",
+            ["TotpCode"] = "Code 2FA (TOTP)",
+            ["TotpCopyTooltip"] = "Copier le code 2FA",
+            ["TotpSecretLabel"] = "Clé secrète 2FA (Base32)",
+            ["TotpGenerate"] = "Générer la clé 2FA",
+            ["PwnedAuditButton"] = "Vérifier les fuites de mots de passe",
         },
         ["zh"] = new()
         {
@@ -357,10 +389,18 @@ public static class LocalizationService
             ["TooltipGenSoftwareKey"] = "生成软件许可证格式 (XXXXX-XXXXX...)",
             ["AboutTitle"] = "关于 STORM KEYS",
             ["AboutPublisher"] = "已验证发布者：STORM TEAM",
-            ["AboutVersion"] = "版本 1.0.0",
+            ["AboutVersion"] = "版本 1.0.1",
             ["AboutCert"] = "证书：STORM INTEGRATED PLATFORM",
             ["AboutDesc"] = "安全数字密钥、密码和许可证保管库，采用 AES-256-GCM 加密和 Argon2id 密钥派生。",
             ["AboutClose"] = "关闭"
+        ,
+            ["WindowsHelloUnlock"] = "使用 Windows Hello 解锁",
+            ["WindowsHelloToggle"] = "Windows Hello 生物识别 (指纹 / 面部 / PIN)",
+            ["TotpCode"] = "2FA 验证码 (TOTP)",
+            ["TotpCopyTooltip"] = "复制 2FA 验证码",
+            ["TotpSecretLabel"] = "2FA 密钥 (Base32)",
+            ["TotpGenerate"] = "生成 2FA 密钥",
+            ["PwnedAuditButton"] = "检查密码泄漏 (Have I Been Pwned)",
         },
         ["ko"] = new()
         {
@@ -419,10 +459,18 @@ public static class LocalizationService
             ["TooltipGenSoftwareKey"] = "소프트웨어 라이선스 키 형식 생성 (XXXXX-XXXXX...)",
             ["AboutTitle"] = "STORM KEYS 정보",
             ["AboutPublisher"] = "확인된 게시자: STORM TEAM",
-            ["AboutVersion"] = "버전 1.0.0",
+            ["AboutVersion"] = "버전 1.0.1",
             ["AboutCert"] = "인증서: STORM INTEGRATED PLATFORM",
             ["AboutDesc"] = "AES-256-GCM 암호화 및 Argon2id KDF가 적용된 디지털 키, 비밀번호 및 라이선스 보안 보관함.",
             ["AboutClose"] = "닫기"
+        ,
+            ["WindowsHelloUnlock"] = "Windows Hello로 잠금 해제",
+            ["WindowsHelloToggle"] = "Windows Hello 생체 인식 (지문 / 얼굴 / PIN)",
+            ["TotpCode"] = "2FA 코드 (TOTP)",
+            ["TotpCopyTooltip"] = "2FA 코드 복사",
+            ["TotpSecretLabel"] = "2FA 비밀 키 (Base32)",
+            ["TotpGenerate"] = "2FA 키 생성",
+            ["PwnedAuditButton"] = "비밀번호 유출 확인 (Have I Been Pwned)",
         },
         ["ja"] = new()
         {
@@ -481,10 +529,18 @@ public static class LocalizationService
             ["TooltipGenSoftwareKey"] = "ソフトウェアライセンス形式を生成 (XXXXX-XXXXX...)",
             ["AboutTitle"] = "STORM KEYS について",
             ["AboutPublisher"] = "検証済み発行元: STORM TEAM",
-            ["AboutVersion"] = "バージョン 1.0.0",
+            ["AboutVersion"] = "バージョン 1.0.1",
             ["AboutCert"] = "証明書: STORM INTEGRATED PLATFORM",
             ["AboutDesc"] = "AES-256-GCM暗号化とArgon2id KDFを備えた、デジタルキー、パスワード、ライセンスの安全な保管庫。",
             ["AboutClose"] = "閉じる"
+        ,
+            ["WindowsHelloUnlock"] = "Windows Helloでロック解除",
+            ["WindowsHelloToggle"] = "Windows Hello 生体認証 (指紋 / 顔 / PIN)",
+            ["TotpCode"] = "2FA コード (TOTP)",
+            ["TotpCopyTooltip"] = "2FA コードをコピー",
+            ["TotpSecretLabel"] = "2FA シークレットキー (Base32)",
+            ["TotpGenerate"] = "2FA キーを生成",
+            ["PwnedAuditButton"] = "パスワードの漏洩チェック (Have I Been Pwned)",
         },
         ["es"] = new()
         {
@@ -543,10 +599,18 @@ public static class LocalizationService
             ["TooltipGenSoftwareKey"] = "Generar formato de clave de licencia (XXXXX-XXXXX...)",
             ["AboutTitle"] = "Acerca de STORM KEYS",
             ["AboutPublisher"] = "Editor verificado: STORM TEAM",
-            ["AboutVersion"] = "Versión 1.0.0",
+            ["AboutVersion"] = "Versión 1.0.1",
             ["AboutCert"] = "Certificado: STORM INTEGRATED PLATFORM",
             ["AboutDesc"] = "Bóveda digital segura para claves, contraseñas y licencias con cifrado AES-256-GCM y derivación Argon2id.",
             ["AboutClose"] = "Cerrar"
+        ,
+            ["WindowsHelloUnlock"] = "Desbloquear con Windows Hello",
+            ["WindowsHelloToggle"] = "Biometría de Windows Hello (huella / rostro / PIN)",
+            ["TotpCode"] = "Código 2FA (TOTP)",
+            ["TotpCopyTooltip"] = "Copiar código 2FA",
+            ["TotpSecretLabel"] = "Clave secreta 2FA (Base32)",
+            ["TotpGenerate"] = "Generar clave 2FA",
+            ["PwnedAuditButton"] = "Comprobar filtraciones de contraseñas",
         },
         ["it"] = new()
         {
@@ -605,10 +669,18 @@ public static class LocalizationService
             ["TooltipGenSoftwareKey"] = "Genera formato chiave di licenza (XXXXX-XXXXX...)",
             ["AboutTitle"] = "Informazioni su STORM KEYS",
             ["AboutPublisher"] = "Editore verificato: STORM TEAM",
-            ["AboutVersion"] = "Versione 1.0.0",
+            ["AboutVersion"] = "Versione 1.0.1",
             ["AboutCert"] = "Certificato: STORM INTEGRATED PLATFORM",
             ["AboutDesc"] = "Cassaforte digitale sicura per chiavi, password e licenze con crittografia AES-256-GCM e derivazione Argon2id.",
             ["AboutClose"] = "Chiudi"
+        ,
+            ["WindowsHelloUnlock"] = "Sblocca con Windows Hello",
+            ["WindowsHelloToggle"] = "Biometria di Windows Hello (impronta / viso / PIN)",
+            ["TotpCode"] = "Codice 2FA (TOTP)",
+            ["TotpCopyTooltip"] = "Copia codice 2FA",
+            ["TotpSecretLabel"] = "Chiave segreta 2FA (Base32)",
+            ["TotpGenerate"] = "Genera chiave 2FA",
+            ["PwnedAuditButton"] = "Verifica violazioni delle password",
         },
         ["pt"] = new()
         {
@@ -667,10 +739,18 @@ public static class LocalizationService
             ["TooltipGenSoftwareKey"] = "Gerar formato de chave de licença (XXXXX-XXXXX...)",
             ["AboutTitle"] = "Sobre o STORM KEYS",
             ["AboutPublisher"] = "Editor verificado: STORM TEAM",
-            ["AboutVersion"] = "Versão 1.0.0",
+            ["AboutVersion"] = "Versão 1.0.1",
             ["AboutCert"] = "Certificado: STORM INTEGRATED PLATFORM",
             ["AboutDesc"] = "Cofre digital seguro para chaves, senhas e licenças com criptografia AES-256-GCM e derivação Argon2id.",
             ["AboutClose"] = "Fechar"
+        ,
+            ["WindowsHelloUnlock"] = "Desbloquear com o Windows Hello",
+            ["WindowsHelloToggle"] = "Biometria do Windows Hello (impressão digital / rosto / PIN)",
+            ["TotpCode"] = "Código 2FA (TOTP)",
+            ["TotpCopyTooltip"] = "Copiar código 2FA",
+            ["TotpSecretLabel"] = "Chave secreta 2FA (Base32)",
+            ["TotpGenerate"] = "Gerar chave 2FA",
+            ["PwnedAuditButton"] = "Verificar vazamentos de senhas",
         },
         ["hi"] = new()
         {
@@ -729,10 +809,18 @@ public static class LocalizationService
             ["TooltipGenSoftwareKey"] = "सॉफ़्टवेयर लाइसेंस कुंजी प्रारूप जनरेट करें (XXXXX-XXXXX...)",
             ["AboutTitle"] = "STORM KEYS के बारे में",
             ["AboutPublisher"] = "सत्यापित प्रकाशक: STORM TEAM",
-            ["AboutVersion"] = "संस्करण 1.0.0",
+            ["AboutVersion"] = "संस्करण 1.0.1",
             ["AboutCert"] = "प्रमाणपत्र: STORM INTEGRATED PLATFORM",
             ["AboutDesc"] = "AES-256-GCM एन्क्रिप्शन और Argon2id KDF के साथ कुंजियों, पासवर्ड और लाइसेंस के लिए सुरक्षित डिजिटल वॉल्ट।",
             ["AboutClose"] = "बंद करें"
+        ,
+            ["WindowsHelloUnlock"] = "Windows Hello से अनलॉक करें",
+            ["WindowsHelloToggle"] = "Windows Hello बायोमेट्रिक्स (फिंगरप्रिंट / चेहरा / पिन)",
+            ["TotpCode"] = "2FA कोड (TOTP)",
+            ["TotpCopyTooltip"] = "2FA कोड कॉपी करें",
+            ["TotpSecretLabel"] = "2FA गुप्त कुंजी (Base32)",
+            ["TotpGenerate"] = "2FA कुंजी उत्पन्न करें",
+            ["PwnedAuditButton"] = "पासवर्ड लीक की जाँच करें",
         }
     };
 
