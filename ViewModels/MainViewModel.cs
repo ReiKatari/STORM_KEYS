@@ -20,7 +20,33 @@ public partial class MainViewModel : ObservableObject
     private readonly IImportExportService _importExportService;
     private readonly INotificationService _notificationService;
     private readonly IStormCertificateService _certService;
+    private readonly IUpdateService _updateService;
     private DispatcherQueue? _dispatcherQueue;
+
+    // Обновления (Auto-Update System)
+    [ObservableProperty]
+    private bool _isUpdateAvailable;
+
+    [ObservableProperty]
+    private string _updateVersion = string.Empty;
+
+    [ObservableProperty]
+    private string _updateChangelog = string.Empty;
+
+    [ObservableProperty]
+    private string _updateDownloadUrl = string.Empty;
+
+    [ObservableProperty]
+    private string _updateFileName = string.Empty;
+
+    [ObservableProperty]
+    private bool _isCheckingUpdate;
+
+    [ObservableProperty]
+    private double _updateProgress;
+
+    [ObservableProperty]
+    private string _updateStatusText = "Проверить обновления";
 
     // Состояния хранилища
     [ObservableProperty]
@@ -215,13 +241,15 @@ public partial class MainViewModel : ObservableObject
         ICryptoService cryptoService,
         IImportExportService importExportService,
         INotificationService notificationService,
-        IStormCertificateService certService)
+        IStormCertificateService certService,
+        IUpdateService updateService)
     {
         _vaultService = vaultService;
         _cryptoService = cryptoService;
         _importExportService = importExportService;
         _notificationService = notificationService;
         _certService = certService;
+        _updateService = updateService;
     }
 
     public void Initialize(DispatcherQueue dispatcherQueue)
@@ -252,6 +280,29 @@ public partial class MainViewModel : ObservableObject
         };
 
         UpdateCloudStatus();
+
+        // Тихая фоновая проверка обновлений по стандарту экосистемы STORM (раздел 9)
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var update = await _updateService.CheckForUpdatesAsync(silent: true);
+                if (update != null)
+                {
+                    _dispatcherQueue.TryEnqueue(() =>
+                    {
+                        IsUpdateAvailable = true;
+                        UpdateVersion = update.Version;
+                        UpdateChangelog = update.Changelog;
+                        UpdateDownloadUrl = update.DownloadUrl;
+                        UpdateFileName = update.FileName;
+                        UpdateStatusText = $"Доступно обновление: {update.Version}";
+                        StatusMessage = $"Доступна новая версия STORM KEYS: {update.Version}";
+                    });
+                }
+            }
+            catch { }
+        });
     }
 
     private void UpdateCloudStatus()
@@ -729,6 +780,64 @@ public partial class MainViewModel : ObservableObject
         finally
         {
             IsLoading = false;
+        }
+    }
+
+    [RelayCommand]
+    public async Task CheckForUpdatesAsync()
+    {
+        if (IsCheckingUpdate) return;
+        IsCheckingUpdate = true;
+        UpdateStatusText = "Проверка обновлений...";
+        try
+        {
+            var update = await _updateService.CheckForUpdatesAsync(silent: false);
+            if (update != null)
+            {
+                IsUpdateAvailable = true;
+                UpdateVersion = update.Version;
+                UpdateChangelog = update.Changelog;
+                UpdateDownloadUrl = update.DownloadUrl;
+                UpdateFileName = update.FileName;
+                UpdateStatusText = $"Доступно обновление: {update.Version}";
+                StatusMessage = $"Найдена новая версия {update.Version}!";
+            }
+            else
+            {
+                IsUpdateAvailable = false;
+                UpdateStatusText = "У вас установлена актуальная версия";
+                StatusMessage = "У вас установлена самая актуальная версия STORM KEYS.";
+            }
+        }
+        catch
+        {
+            UpdateStatusText = "Ошибка подключения к серверу обновлений";
+            StatusMessage = "Не удалось проверить обновления. Проверьте интернет-соединение.";
+        }
+        finally
+        {
+            IsCheckingUpdate = false;
+        }
+    }
+
+    [RelayCommand]
+    public async Task InstallUpdateAsync()
+    {
+        if (string.IsNullOrEmpty(UpdateDownloadUrl)) return;
+        StatusMessage = $"Загрузка обновления {UpdateVersion}...";
+        var info = new UpdateInfo(UpdateVersion, UpdateChangelog, UpdateDownloadUrl, UpdateFileName);
+        var prog = new Progress<double>(p =>
+        {
+            _dispatcherQueue?.TryEnqueue(() =>
+            {
+                UpdateProgress = p;
+                StatusMessage = $"Загрузка обновления: {p:F0}%";
+            });
+        });
+        bool ok = await _updateService.DownloadAndInstallAsync(info, prog);
+        if (!ok)
+        {
+            StatusMessage = "Ошибка загрузки или запуска установщика обновления.";
         }
     }
 }

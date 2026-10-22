@@ -14,6 +14,7 @@ public partial class App : Application
     public static IImportExportService ImportExportService { get; private set; } = null!;
     public static INotificationService NotificationService { get; private set; } = null!;
     public static IStormCertificateService CertificateService { get; private set; } = null!;
+    public static IUpdateService UpdateService { get; private set; } = null!;
     public static MainViewModel ViewModel { get; private set; } = null!;
 
     [System.Runtime.InteropServices.DllImport("shell32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode, SetLastError = true)]
@@ -35,13 +36,15 @@ public partial class App : Application
         ImportExportService = new ImportExportService();
         NotificationService = new NotificationService();
         CertificateService = new StormCertificateService();
+        UpdateService = new UpdateService();
 
         ViewModel = new MainViewModel(
             VaultService,
             CryptoService,
             ImportExportService,
             NotificationService,
-            CertificateService);
+            CertificateService,
+            UpdateService);
     }
 
     protected override async void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)

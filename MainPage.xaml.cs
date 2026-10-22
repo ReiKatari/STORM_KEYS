@@ -21,6 +21,7 @@ public sealed partial class MainPage : Page
     public Visibility InvBoolToVis(bool val) => val ? Visibility.Collapsed : Visibility.Visible;
     public Visibility StringToVis(string? val) => string.IsNullOrWhiteSpace(val) ? Visibility.Collapsed : Visibility.Visible;
     public bool HasText(string? val) => !string.IsNullOrWhiteSpace(val);
+    public bool Not(bool val) => !val;
     public SolidColorBrush HexToBrush(string? hex) => BrushHelper.FromHex(hex);
 
     public List<string> CategoryFilterOptions { get; } = new()
