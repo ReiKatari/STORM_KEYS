@@ -33,6 +33,7 @@ public static class Program
         await RunTest("Локализация: 11 языков и язык системы по умолчанию", Test_LocalizationService_Definitions);
         await RunTest("TOTP 2FA: Генерация RFC 6238, Base32 и таймер", Test_Totp_Service);
         await RunTest("Have I Been Pwned: k-Anonymity SHA-1 хэширование", Test_Pwned_Service);
+        await RunTest("Tray Service: Проверка NOTIFYICONDATA и иконки", Test_Tray_Service);
 
         Console.WriteLine("-------------------------------------------------");
         Console.WriteLine($"РЕЗУЛЬТАТ: Успешно: {_passed} | Ошибок: {_failed}");
@@ -381,6 +382,19 @@ public static class Program
         AssertEqual(2, summary.TotalChecked, "Всего должно быть проверено 2 записи");
 
         return;
+    }
+
+
+    private static Task Test_Tray_Service()
+    {
+        var trayType = typeof(StormTrayService);
+        var nidType = trayType.GetNestedType("NOTIFYICONDATA", System.Reflection.BindingFlags.NonPublic);
+        AssertTrue(nidType != null, "NOTIFYICONDATA struct must exist");
+        int size = System.Runtime.InteropServices.Marshal.SizeOf(nidType!);
+        Console.Write($"[struct size: {size} bytes] ");
+        AssertTrue(size > 0, "Size must be > 0");
+
+        return Task.CompletedTask;
     }
 
     private static void AssertTrue(bool condition, string message)

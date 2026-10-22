@@ -6,7 +6,8 @@ using System.Runtime.InteropServices;
 namespace StormKeys.Services;
 
 /// <summary>
-/// Нативный сервис системного трея со 100% надежностью, тёмным оформлением MIDNIGHT (#141026)
+/// Нативный сервис системного трея со 100% надёжностью, тёмным оформлением MIDNIGHT (#141026),
+/// выделенным окном сообщений, поддержкой TaskbarCreated (перезапуск Explorer)
 /// и гарантированным закрытием процесса по стандарту экосистемы STORM.
 /// </summary>
 public sealed class StormTrayService : IDisposable
@@ -17,14 +18,20 @@ public sealed class StormTrayService : IDisposable
     private const int WM_LBUTTONDBLCLK = 0x0203;
     private const int WM_RBUTTONUP = 0x0205;
     private const int WM_CONTEXTMENU = 0x007B;
+    private const int WM_DESTROY = 0x0002;
 
     private const int NIM_ADD = 0x00000000;
     private const int NIM_MODIFY = 0x00000001;
     private const int NIM_DELETE = 0x00000002;
+    private const int NIM_SETVERSION = 0x00000004;
 
     private const int NIF_MESSAGE = 0x00000001;
     private const int NIF_ICON = 0x00000002;
     private const int NIF_TIP = 0x00000004;
+    private const int NIF_INFO = 0x00000010;
+
+    private const int NIIF_INFO = 0x00000001;
+    private const int NOTIFYICON_VERSION_4 = 4;
 
     private const int MF_STRING = 0x00000000;
     private const int MF_SEPARATOR = 0x00000800;
@@ -39,8 +46,10 @@ public sealed class StormTrayService : IDisposable
     private const int CMD_EXIT = 1003;
 
     private const uint WS_POPUP = 0x80000000;
-    private const uint WS_VISIBLE = 0x10000000;
     private const uint WS_EX_TOOLWINDOW = 0x00000080;
+
+    private const int SM_CXSMICON = 49;
+    private const int SM_CYSMICON = 50;
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     private struct NOTIFYICONDATA
@@ -84,8 +93,31 @@ public sealed class StormTrayService : IDisposable
         public UIntPtr dwMenuData;
     }
 
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private delegate IntPtr WndProcDelegate(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam);
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct WNDCLASSEXW
+    {
+        public uint cbSize;
+        public uint style;
+        public IntPtr lpfnWndProc;
+        public int cbClsExtra;
+        public int cbWndExtra;
+        public IntPtr hInstance;
+        public IntPtr hIcon;
+        public IntPtr hCursor;
+        public IntPtr hbrBackground;
+        public string? lpszMenuName;
+        public string lpszClassName;
+        public IntPtr hIconSm;
+    }
+
     [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
     private static extern bool Shell_NotifyIconW(int dwMessage, ref NOTIFYICONDATA lpdata);
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    private static extern uint ExtractIconExW(string lpszFile, int nIconIndex, out IntPtr phiconLarge, out IntPtr phiconSmall, uint nIcons);
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern IntPtr CreatePopupMenu();
@@ -121,37 +153,37 @@ public sealed class StormTrayService : IDisposable
     private static extern bool PostMessageW(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
 
     [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern ushort RegisterClassExW(ref WNDCLASSEXW lpwcx);
+
+    [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     private static extern IntPtr CreateWindowExW(
         uint dwExStyle, string lpClassName, string lpWindowName, uint dwStyle,
-        int x, int y, int nWidth, int nHeight, IntPtr hWndParent, IntPtr hMenu, IntPtr hInstance, IntPtr lpParam);
+        int x, int y, int nWidth, int nHeight,
+        IntPtr hWndParent, IntPtr hMenu, IntPtr hInstance, IntPtr lpParam);
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool DestroyWindow(IntPtr hWnd);
 
-    [DllImport("comctl32.dll", SetLastError = true)]
-    private static extern bool SetWindowSubclass(IntPtr hWnd, SubclassProc pfnSubclass, UIntPtr uIdSubclass, IntPtr dwRefData);
+    [DllImport("user32.dll")]
+    private static extern IntPtr DefWindowProcW(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam);
 
-    [DllImport("comctl32.dll", SetLastError = true)]
-    private static extern bool RemoveWindowSubclass(IntPtr hWnd, SubclassProc pfnSubclass, UIntPtr uIdSubclass);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern uint RegisterWindowMessageW(string lpString);
 
-    [DllImport("comctl32.dll")]
-    private static extern IntPtr DefSubclassProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam);
-
-    [DllImport("uxtheme.dll", EntryPoint = "#135", SetLastError = true)]
-    private static extern int SetPreferredAppMode(int appMode);
-
-    [DllImport("uxtheme.dll", EntryPoint = "#133", SetLastError = true)]
-    private static extern bool AllowDarkModeForWindow(IntPtr hWnd, bool allow);
+    [DllImport("user32.dll")]
+    private static extern int GetSystemMetrics(int nIndex);
 
     [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
     private static extern IntPtr LoadImage(IntPtr hinst, string lpszName, uint uType, int cxDesired, int cyDesired, uint fuLoad);
 
-    private delegate IntPtr SubclassProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, UIntPtr uIdSubclass, IntPtr dwRefData);
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool DestroyIcon(IntPtr hIcon);
 
-    private readonly IntPtr _hWnd;
-    private readonly SubclassProc _subclassDelegate;
+    private readonly WndProcDelegate _wndProcDelegate;
+    private readonly uint _wmTaskbarCreated;
+    private IntPtr _hTrayWnd = IntPtr.Zero;
+    private IntPtr _hIcon = IntPtr.Zero;
     private NOTIFYICONDATA _nid;
-    private IntPtr _hHelperWnd = IntPtr.Zero;
     private bool _isCreated;
     private bool _isDisposed;
 
@@ -159,70 +191,136 @@ public sealed class StormTrayService : IDisposable
     public Action? OnAboutRequested { get; set; }
     public Action? OnExitRequested { get; set; }
 
-    public StormTrayService(IntPtr hWnd)
+    public StormTrayService(IntPtr ownerHWnd)
     {
-        _hWnd = hWnd;
-        _subclassDelegate = WindowSubclassProc;
+        _wndProcDelegate = TrayWindowProc;
+        _wmTaskbarCreated = RegisterWindowMessageW("TaskbarCreated");
 
+        CreateTrayHelperWindow();
+        InitializeTrayIcon();
+    }
+
+    private void CreateTrayHelperWindow()
+    {
         try
         {
-            // Системный тёмный режим для Win32 меню (AllowDark = 1, ForceDark = 2)
-            SetPreferredAppMode(2);
-            AllowDarkModeForWindow(_hWnd, true);
+            string className = $"STORM_KEYS_TRAY_{Guid.NewGuid():N}";
+            var wcx = new WNDCLASSEXW
+            {
+                cbSize = (uint)Marshal.SizeOf<WNDCLASSEXW>(),
+                style = 0,
+                lpfnWndProc = Marshal.GetFunctionPointerForDelegate(_wndProcDelegate),
+                cbClsExtra = 0,
+                cbWndExtra = 0,
+                hInstance = Process.GetCurrentProcess().Handle,
+                hIcon = IntPtr.Zero,
+                hCursor = IntPtr.Zero,
+                hbrBackground = IntPtr.Zero,
+                lpszMenuName = null,
+                lpszClassName = className,
+                hIconSm = IntPtr.Zero
+            };
+
+            ushort atom = RegisterClassExW(ref wcx);
+            if (atom != 0)
+            {
+                _hTrayWnd = CreateWindowExW(
+                    WS_EX_TOOLWINDOW,
+                    className,
+                    "STORM_KEYS_TRAY_WINDOW",
+                    WS_POPUP,
+                    -32000, -32000, 1, 1,
+                    IntPtr.Zero, IntPtr.Zero, Process.GetCurrentProcess().Handle, IntPtr.Zero);
+            }
         }
         catch { }
+    }
 
-        // Создаем вспомогательное невидимое окно для гарантированной активации меню, когда главное окно скрыто (AppWindow.Hide())
+    private IntPtr LoadTrayIconHandle()
+    {
+        int cx = GetSystemMetrics(SM_CXSMICON);
+        int cy = GetSystemMetrics(SM_CYSMICON);
+        if (cx <= 0) cx = 16;
+        if (cy <= 0) cy = 16;
+
+        // 1. Попытка загрузить из Assets\AppIcon.ico
+        string[] candidates = {
+            Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico"),
+            Path.Combine(AppContext.BaseDirectory, "app.ico"),
+            @"F:\STORM KEYS\Assets\AppIcon.ico"
+        };
+
+        foreach (var path in candidates)
+        {
+            if (File.Exists(path))
+            {
+                try
+                {
+                    IntPtr h = LoadImage(IntPtr.Zero, path, 1 /*IMAGE_ICON*/, cx, cy, 0x00000010 /*LR_LOADFROMFILE*/);
+                    if (h != IntPtr.Zero) return h;
+                }
+                catch { }
+            }
+        }
+
+        // 2. Извлечение маленького значка из текущего .exe
         try
         {
-            _hHelperWnd = CreateWindowExW(
-                WS_EX_TOOLWINDOW,
-                "STATIC",
-                "StormTrayHelper",
-                WS_POPUP | WS_VISIBLE,
-                -32000, -32000, 1, 1,
-                IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
-
-            if (_hHelperWnd != IntPtr.Zero)
+            string? exe = Process.GetCurrentProcess().MainModule?.FileName;
+            if (!string.IsNullOrEmpty(exe) && File.Exists(exe))
             {
-                AllowDarkModeForWindow(_hHelperWnd, true);
+                if (ExtractIconExW(exe, 0, out _, out IntPtr hSmall, 1) > 0 && hSmall != IntPtr.Zero)
+                    return hSmall;
             }
         }
         catch { }
 
-        SetWindowSubclass(_hWnd, _subclassDelegate, (UIntPtr)2026, IntPtr.Zero);
-        InitializeTrayIcon();
+        return IntPtr.Zero;
     }
 
     private void InitializeTrayIcon()
     {
-        IntPtr hIcon = IntPtr.Zero;
-        try
-        {
-            string iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico");
-            if (File.Exists(iconPath))
-            {
-                hIcon = LoadImage(IntPtr.Zero, iconPath, 1 /*IMAGE_ICON*/, 16, 16, 0x00000010 /*LR_LOADFROMFILE*/);
-            }
-        }
-        catch { }
+        if (_hTrayWnd == IntPtr.Zero) return;
+
+        _hIcon = LoadTrayIconHandle();
 
         _nid = new NOTIFYICONDATA
         {
             cbSize = Marshal.SizeOf<NOTIFYICONDATA>(),
-            hWnd = _hWnd,
-            uID = 1,
+            hWnd = _hTrayWnd,
+            uID = 1001,
             uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP,
             uCallbackMessage = WM_TRAYICON,
-            hIcon = hIcon,
+            hIcon = _hIcon,
             szTip = "STORM KEYS"
         };
 
         _isCreated = Shell_NotifyIconW(NIM_ADD, ref _nid);
+        if (_isCreated)
+        {
+            _nid.uTimeoutOrVersion = NOTIFYICON_VERSION_4;
+            Shell_NotifyIconW(NIM_SETVERSION, ref _nid);
+        }
     }
 
-    private IntPtr WindowSubclassProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam, UIntPtr uIdSubclass, IntPtr dwRefData)
+    private IntPtr TrayWindowProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam)
     {
+        if (_wmTaskbarCreated != 0 && uMsg == _wmTaskbarCreated)
+        {
+            // Перезапуск Windows Explorer / смена темы: пересоздаём иконку в трее
+            if (_hIcon == IntPtr.Zero)
+                _hIcon = LoadTrayIconHandle();
+
+            _nid.hIcon = _hIcon;
+            _isCreated = Shell_NotifyIconW(NIM_ADD, ref _nid);
+            if (_isCreated)
+            {
+                _nid.uTimeoutOrVersion = NOTIFYICON_VERSION_4;
+                Shell_NotifyIconW(NIM_SETVERSION, ref _nid);
+            }
+            return IntPtr.Zero;
+        }
+
         if (uMsg == WM_TRAYICON)
         {
             int eventId = (int)(lParam.ToInt64() & 0xFFFF);
@@ -238,7 +336,7 @@ public sealed class StormTrayService : IDisposable
             }
         }
 
-        return DefSubclassProc(hWnd, uMsg, wParam, lParam);
+        return DefWindowProcW(hWnd, uMsg, wParam, lParam);
     }
 
     public void ShowContextMenu()
@@ -278,12 +376,10 @@ public sealed class StormTrayService : IDisposable
 
             GetCursorPos(out POINT pt);
 
-            // Используем helper window для гарантированного SetForegroundWindow, даже если главное окно скрыто
-            IntPtr trackingWnd = _hHelperWnd != IntPtr.Zero ? _hHelperWnd : _hWnd;
-            SetForegroundWindow(trackingWnd);
+            SetForegroundWindow(_hTrayWnd);
 
-            int cmd = TrackPopupMenuEx(hMenu, TPM_RIGHTBUTTON | TPM_RETURNCMD, pt.X, pt.Y, trackingWnd, IntPtr.Zero);
-            PostMessageW(trackingWnd, 0, IntPtr.Zero, IntPtr.Zero);
+            int cmd = TrackPopupMenuEx(hMenu, TPM_RIGHTBUTTON | TPM_RETURNCMD, pt.X, pt.Y, _hTrayWnd, IntPtr.Zero);
+            PostMessageW(_hTrayWnd, 0, IntPtr.Zero, IntPtr.Zero);
 
             if (cmd == CMD_RESTORE)
             {
@@ -308,12 +404,33 @@ public sealed class StormTrayService : IDisposable
         }
     }
 
+    public void ShowBalloon(string title, string message)
+    {
+        if (!_isCreated || _hTrayWnd == IntPtr.Zero) return;
+
+        try
+        {
+            _nid.uFlags = NIF_INFO;
+            _nid.szInfoTitle = title;
+            _nid.szInfo = message;
+            _nid.dwInfoFlags = NIIF_INFO;
+            Shell_NotifyIconW(NIM_MODIFY, ref _nid);
+        }
+        catch { }
+    }
+
     public void RemoveIcon()
     {
         if (_isCreated)
         {
             Shell_NotifyIconW(NIM_DELETE, ref _nid);
             _isCreated = false;
+        }
+
+        if (_hIcon != IntPtr.Zero)
+        {
+            try { DestroyIcon(_hIcon); } catch { }
+            _hIcon = IntPtr.Zero;
         }
     }
 
@@ -323,14 +440,13 @@ public sealed class StormTrayService : IDisposable
         _isDisposed = true;
 
         RemoveIcon();
-        RemoveWindowSubclass(_hWnd, _subclassDelegate, (UIntPtr)2026);
 
-        if (_hHelperWnd != IntPtr.Zero)
+        if (_hTrayWnd != IntPtr.Zero)
         {
             try
             {
-                DestroyWindow(_hHelperWnd);
-                _hHelperWnd = IntPtr.Zero;
+                DestroyWindow(_hTrayWnd);
+                _hTrayWnd = IntPtr.Zero;
             }
             catch { }
         }

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -14,24 +15,53 @@ public static class PasswordGenerator
     public static string Generate(int length = 20, bool useUpper = true, bool useLower = true, bool useDigits = true, bool useSpecial = true)
     {
         var charPool = new StringBuilder();
-        if (useUpper) charPool.Append(UppercaseChars);
-        if (useLower) charPool.Append(LowercaseChars);
-        if (useDigits) charPool.Append(DigitChars);
-        if (useSpecial) charPool.Append(SpecialChars);
+        var requiredChars = new List<char>();
 
-        if (charPool.Length == 0)
-            charPool.Append(LowercaseChars + DigitChars);
-
-        string pool = charPool.ToString();
-        var result = new StringBuilder(length);
-
-        for (int i = 0; i < length; i++)
+        if (useUpper)
         {
-            int index = RandomNumberGenerator.GetInt32(pool.Length);
-            result.Append(pool[index]);
+            charPool.Append(UppercaseChars);
+            requiredChars.Add(UppercaseChars[RandomNumberGenerator.GetInt32(UppercaseChars.Length)]);
+        }
+        if (useLower)
+        {
+            charPool.Append(LowercaseChars);
+            requiredChars.Add(LowercaseChars[RandomNumberGenerator.GetInt32(LowercaseChars.Length)]);
+        }
+        if (useDigits)
+        {
+            charPool.Append(DigitChars);
+            requiredChars.Add(DigitChars[RandomNumberGenerator.GetInt32(DigitChars.Length)]);
+        }
+        if (useSpecial)
+        {
+            charPool.Append(SpecialChars);
+            requiredChars.Add(SpecialChars[RandomNumberGenerator.GetInt32(SpecialChars.Length)]);
         }
 
-        return result.ToString();
+        if (charPool.Length == 0)
+        {
+            charPool.Append(LowercaseChars + DigitChars);
+            requiredChars.Add(LowercaseChars[RandomNumberGenerator.GetInt32(LowercaseChars.Length)]);
+            requiredChars.Add(DigitChars[RandomNumberGenerator.GetInt32(DigitChars.Length)]);
+        }
+
+        string pool = charPool.ToString();
+        var resultList = new List<char>(requiredChars);
+
+        while (resultList.Count < length)
+        {
+            int index = RandomNumberGenerator.GetInt32(pool.Length);
+            resultList.Add(pool[index]);
+        }
+
+        // Cryptographic Fisher-Yates Shuffle
+        for (int i = resultList.Count - 1; i > 0; i--)
+        {
+            int j = RandomNumberGenerator.GetInt32(i + 1);
+            (resultList[i], resultList[j]) = (resultList[j], resultList[i]);
+        }
+
+        return new string(resultList.ToArray());
     }
 
     public static string GenerateLicenseKey(int groups = 5, int groupLength = 5)

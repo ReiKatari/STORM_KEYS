@@ -105,6 +105,37 @@ public sealed partial class MainPage : Page
 
     private void MainPage_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
     {
+        // Быстрые клавиши: Ctrl+F (Поиск), Ctrl+N (Создать), Ctrl+L (Заблокировать)
+        var ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control);
+        bool isCtrlDown = (ctrl & Windows.UI.Core.CoreVirtualKeyStates.Down) == Windows.UI.Core.CoreVirtualKeyStates.Down;
+
+        if (isCtrlDown && e.Key == Windows.System.VirtualKey.F)
+        {
+            SearchBox?.Focus(FocusState.Programmatic);
+            e.Handled = true;
+            return;
+        }
+
+        if (isCtrlDown && e.Key == Windows.System.VirtualKey.N)
+        {
+            if (!ViewModel.IsVaultLocked)
+            {
+                ViewModel.OpenAddDialogCommand.Execute(null);
+                e.Handled = true;
+                return;
+            }
+        }
+
+        if (isCtrlDown && e.Key == Windows.System.VirtualKey.L)
+        {
+            if (!ViewModel.IsVaultLocked)
+            {
+                _ = ViewModel.LockVaultCommand.ExecuteAsync(null);
+                e.Handled = true;
+                return;
+            }
+        }
+
         if (e.Key == Windows.System.VirtualKey.Escape)
         {
             if (ViewModel == null) return;
@@ -198,6 +229,36 @@ public sealed partial class MainPage : Page
         if (sender is Button btn && btn.Tag is KeyEntry entry)
         {
             ViewModel.CopyTotpCode(entry);
+        }
+    }
+
+
+    private void ToggleFavorite_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is KeyEntry entry)
+        {
+            _ = ViewModel.ToggleFavoriteCommand.ExecuteAsync(entry);
+        }
+    }
+
+    private void LaunchWebsite_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is KeyEntry entry)
+        {
+            _ = ViewModel.LaunchUrlCommand.ExecuteAsync(entry);
+        }
+    }
+
+    private void ToggleDensity_Click(object sender, RoutedEventArgs e)
+    {
+        _ = ViewModel.ToggleDensityCommand.ExecuteAsync(null);
+    }
+
+    private void FilterChip_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is string chip)
+        {
+            ViewModel.FilterByChipCommand.Execute(chip);
         }
     }
 

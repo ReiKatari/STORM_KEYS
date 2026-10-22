@@ -57,6 +57,36 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private bool _isAboutDialogVisible;
 
+    // Новые возможности версии 1.0.2
+    [ObservableProperty]
+    private bool _isCompactView;
+
+    [ObservableProperty]
+    private string _activeFilterChip = "All";
+
+    [ObservableProperty]
+    private int _favoritesCount;
+
+    [ObservableProperty]
+    private int _breachedCount;
+
+    [ObservableProperty]
+    private int _weakPasswordsCount;
+
+    [ObservableProperty]
+    private int _duplicatePasswordsCount;
+
+    [ObservableProperty]
+    private bool _isHealthDashboardVisible;
+
+    private DateTimeOffset _lastActivityTime = DateTimeOffset.Now;
+
+    public void RecordUserActivity()
+    {
+        _lastActivityTime = DateTimeOffset.Now;
+    }
+
+
     // Состояния хранилища
     [ObservableProperty]
     private bool _isVaultUninitialized;
@@ -498,6 +528,17 @@ public partial class MainViewModel : ObservableObject
                 entry.TotpProgress = progress;
             }
         }
+
+        // Автоблокировка при неактивности пользователя
+        if (!IsVaultLocked && _vaultService.Settings.AutoLockMinutes > 0)
+        {
+            var idleMinutes = (DateTimeOffset.Now - _lastActivityTime).TotalMinutes;
+            if (idleMinutes >= _vaultService.Settings.AutoLockMinutes)
+            {
+                _ = LockVaultAsync();
+                StatusMessage = "Хранилище автоматически заблокировано по таймеру неактивности.";
+            }
+        }
     }
 
     [RelayCommand]
@@ -657,6 +698,14 @@ public partial class MainViewModel : ObservableObject
         ExpiringSoonCount = allEntries.Count(e => e.IsExpiringSoon);
         ExpiredCount = allEntries.Count(e => e.IsExpired);
         ActiveCount = allEntries.Count(e => !e.IsExpired);
+        FavoritesCount = allEntries.Count(e => e.IsFavorite);
+        BreachedCount = allEntries.Count(e => e.IsPwnedBreached);
+        WeakPasswordsCount = allEntries.Count(e => !string.IsNullOrEmpty(e.SecretValue) && PasswordGenerator.EvaluateStrength(e.SecretValue).Score <= 2);
+
+        var dupGroups = allEntries.Where(e => !string.IsNullOrEmpty(e.SecretValue))
+                                  .GroupBy(e => e.SecretValue)
+                                  .Where(g => g.Count() > 1);
+        DuplicatePasswordsCount = dupGroups.Sum(g => g.Count());
 
         double total = Math.Max(1, TotalEntriesCount);
         ActiveRatio = (double)ActiveCount / total;
@@ -675,6 +724,23 @@ public partial class MainViewModel : ObservableObject
                 e.UsernameOrEmail.ToLowerInvariant().Contains(s) ||
                 e.TargetAppOrUrl.ToLowerInvariant().Contains(s) ||
                 e.Notes.ToLowerInvariant().Contains(s));
+        }
+
+
+        // Фильтрация по быстрым чипам
+        if (!string.IsNullOrEmpty(ActiveFilterChip) && ActiveFilterChip != "All")
+        {
+            query = ActiveFilterChip switch
+            {
+                "Favorites" => query.Where(e => e.IsFavorite),
+                "Breached" => query.Where(e => e.IsPwnedBreached),
+                "Expiring" => query.Where(e => e.IsExpiringSoon || e.IsExpired),
+                "Account" => query.Where(e => e.Category == KeyCategory.Account),
+                "License" => query.Where(e => e.Category == KeyCategory.License),
+                "ApiKey" => query.Where(e => e.Category == KeyCategory.ApiKey),
+                "Server" => query.Where(e => e.Category == KeyCategory.Server),
+                _ => query
+            };
         }
 
         // Фильтр категорий
@@ -706,8 +772,7 @@ public partial class MainViewModel : ObservableObject
         }
 
         // Сортировка: сначала критические и истекающие, затем по имени
-        var list = query
-            .OrderBy(e => e.IsExpired ? 0 : (e.IsCriticalExpiring ? 1 : (e.IsExpiringSoon ? 2 : 3)))
+        var list = query.OrderByDescending(e => e.IsFavorite).ThenBy(e => e.IsExpired ? 0 : (e.IsCriticalExpiring ? 1 : (e.IsExpiringSoon ? 2 : 3)))
             .ThenBy(e => e.DaysRemaining ?? int.MaxValue)
             .ThenBy(e => e.Title)
             .ToList();
@@ -755,6 +820,52 @@ public partial class MainViewModel : ObservableObject
         IsEditDialogVisible = true;
     }
 
+
+    [RelayCommand]
+    public async Task ToggleFavoriteAsync(KeyEntry? entry)
+    {
+        if (entry == null || _vaultService.CurrentContainer == null) return;
+        RecordUserActivity();
+        entry.IsFavorite = !entry.IsFavorite;
+        await _vaultService.SaveVaultAsync();
+        RefreshFilteredList();
+        StatusMessage = entry.IsFavorite ? $"«{entry.Title}» добавлено в избранное!" : $"«{entry.Title}» удалено из избранного.";
+    }
+
+    [RelayCommand]
+    public async Task ToggleDensityAsync()
+    {
+        RecordUserActivity();
+        IsCompactView = !IsCompactView;
+        _vaultService.Settings.IsCompactView = IsCompactView;
+        await _vaultService.SaveSettingsAsync();
+    }
+
+    [RelayCommand]
+    public void FilterByChip(string chip)
+    {
+        RecordUserActivity();
+        ActiveFilterChip = chip;
+        RefreshFilteredList();
+    }
+
+    [RelayCommand]
+    public async Task LaunchUrlAsync(KeyEntry? entry)
+    {
+        if (entry?.WebsiteLaunchUri != null)
+        {
+            RecordUserActivity();
+            await Windows.System.Launcher.LaunchUriAsync(entry.WebsiteLaunchUri);
+        }
+    }
+
+    [RelayCommand]
+    public void ToggleHealthDashboard()
+    {
+        RecordUserActivity();
+        IsHealthDashboardVisible = !IsHealthDashboardVisible;
+    }
+
     [RelayCommand]
     public async Task SaveEntryAsync()
     {
@@ -796,6 +907,19 @@ public partial class MainViewModel : ObservableObject
             SelectedEntry.Title = EditTitle.Trim();
             SelectedEntry.Category = EditCategory;
             SelectedEntry.UsernameOrEmail = EditUsername.Trim();
+            
+            if (!IsNewEntry && SelectedEntry != null && SelectedEntry.SecretValue != EditSecret && !string.IsNullOrEmpty(SelectedEntry.SecretValue))
+            {
+                SelectedEntry.PasswordHistory ??= new();
+                SelectedEntry.PasswordHistory.Insert(0, new PasswordHistoryItem 
+                { 
+                    Password = SelectedEntry.SecretValue, 
+                    ChangedAt = DateTimeOffset.Now 
+                });
+                if (SelectedEntry.PasswordHistory.Count > 5)
+                    SelectedEntry.PasswordHistory.RemoveAt(SelectedEntry.PasswordHistory.Count - 1);
+            }
+
             SelectedEntry.SecretValue = EditSecret;
             SelectedEntry.TargetAppOrUrl = EditTargetApp.Trim();
             SelectedEntry.ExpirationDate = EditHasExpiration ? EditExpirationDate : null;

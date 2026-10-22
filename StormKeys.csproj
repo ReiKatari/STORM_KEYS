@@ -5,9 +5,9 @@
     <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
     <RootNamespace>StormKeys</RootNamespace>
     <AssemblyTitle>STORM KEYS</AssemblyTitle>
-    <Version>1.0.1</Version>
-    <AssemblyVersion>1.0.1.0</AssemblyVersion>
-    <FileVersion>1.0.1.0</FileVersion>
+    <Version>1.0.2</Version>
+    <AssemblyVersion>1.0.2.0</AssemblyVersion>
+    <FileVersion>1.0.2.0</FileVersion>
     <Product>STORM KEYS</Product>
     <Description>STORM KEYS - Защищенное хранилище ключей и паролей</Description>
     <Company>STORM TEAM</Company>

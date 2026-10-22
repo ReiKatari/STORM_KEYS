@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text.Json.Serialization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.UI.Xaml;
+using StormKeys.Helpers;
 
 namespace StormKeys.Models;
 
@@ -16,17 +17,74 @@ public enum KeyCategory
     Other           // Заметки, пин-коды, прочее
 }
 
+public class PasswordHistoryItem
+{
+    public string Password { get; set; } = string.Empty;
+    public DateTimeOffset ChangedAt { get; set; } = DateTimeOffset.Now;
+}
+
 public partial class KeyEntry : ObservableObject
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public string Title { get; set; } = string.Empty;
     public KeyCategory Category { get; set; } = KeyCategory.Account;
     public string UsernameOrEmail { get; set; } = string.Empty;
-    public string SecretValue { get; set; } = string.Empty;
-    public string TargetAppOrUrl { get; set; } = string.Empty;
+
+    private string _secretValue = string.Empty;
+    public string SecretValue
+    {
+        get => _secretValue;
+        set
+        {
+            if (SetProperty(ref _secretValue, value))
+            {
+                OnPropertyChanged(nameof(MaskedSecret));
+                OnPropertyChanged(nameof(PasswordStrengthLabel));
+                OnPropertyChanged(nameof(PasswordStrengthColor));
+            }
+        }
+    }
+
+    private string _targetAppOrUrl = string.Empty;
+    public string TargetAppOrUrl
+    {
+        get => _targetAppOrUrl;
+        set
+        {
+            if (SetProperty(ref _targetAppOrUrl, value))
+            {
+                OnPropertyChanged(nameof(HasWebsiteUrl));
+                OnPropertyChanged(nameof(WebsiteLaunchUri));
+            }
+        }
+    }
+
     public DateTimeOffset? ExpirationDate { get; set; }
     public string Notes { get; set; } = string.Empty;
     public List<string> Tags { get; set; } = new();
+
+    // Избранное / Закреплено вверху
+    private bool _isFavorite;
+    public bool IsFavorite
+    {
+        get => _isFavorite;
+        set => SetProperty(ref _isFavorite, value);
+    }
+
+    // Выбор для массовых операций
+    private bool _isSelected;
+    [JsonIgnore]
+    public bool IsSelected
+    {
+        get => _isSelected;
+        set => SetProperty(ref _isSelected, value);
+    }
+
+    // Пользовательские атрибуты (PIN, Port, SSH User, etc.)
+    public Dictionary<string, string> CustomFields { get; set; } = new();
+
+    // История предыдущих паролей
+    public List<PasswordHistoryItem> PasswordHistory { get; set; } = new();
 
     // Двухфакторная аутентификация (TOTP / 2FA)
     private string _totpSecret = string.Empty;
@@ -64,6 +122,7 @@ public partial class KeyEntry : ObservableObject
     partial void OnTotpSecondsRemainingChanged(int value)
     {
         OnPropertyChanged(nameof(TotpCountdownText));
+        OnPropertyChanged(nameof(TotpTimerColor));
     }
 
     partial void OnCurrentTotpCodeChanged(string value)
@@ -78,6 +137,14 @@ public partial class KeyEntry : ObservableObject
 
     [JsonIgnore]
     public string TotpCountdownText => $"{TotpSecondsRemaining}s";
+
+    [JsonIgnore]
+    public string TotpTimerColor => TotpSecondsRemaining switch
+    {
+        <= 5 => "#D13438", // Красный
+        <= 10 => "#FF8C00", // Оранжевый
+        _ => "#107C41"      // Зелёный
+    };
 
     // Аудит безопасности (Have I Been Pwned)
     [ObservableProperty]
@@ -220,4 +287,42 @@ public partial class KeyEntry : ObservableObject
     public string MaskedSecret => string.IsNullOrEmpty(SecretValue) 
         ? string.Empty 
         : new string('•', Math.Min(SecretValue.Length, 12));
+
+    [JsonIgnore]
+    public bool HasWebsiteUrl => !string.IsNullOrWhiteSpace(TargetAppOrUrl) &&
+                                 (TargetAppOrUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                                  TargetAppOrUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase));
+
+    [JsonIgnore]
+    public Uri? WebsiteLaunchUri
+    {
+        get
+        {
+            if (HasWebsiteUrl && Uri.TryCreate(TargetAppOrUrl, UriKind.Absolute, out var uri))
+                return uri;
+            return null;
+        }
+    }
+
+    [JsonIgnore]
+    public string PasswordStrengthLabel
+    {
+        get
+        {
+            if (string.IsNullOrEmpty(SecretValue)) return "—";
+            var eval = PasswordGenerator.EvaluateStrength(SecretValue);
+            return eval.Label;
+        }
+    }
+
+    [JsonIgnore]
+    public string PasswordStrengthColor
+    {
+        get
+        {
+            if (string.IsNullOrEmpty(SecretValue)) return "#7A7A7A";
+            var eval = PasswordGenerator.EvaluateStrength(SecretValue);
+            return eval.ColorHex;
+        }
+    }
 }

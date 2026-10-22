@@ -77,7 +77,7 @@ public sealed class VolumetricButton : Button
 public sealed class InstallerForm : Form
 {
     private const string AppDisplayName = "STORM KEYS";
-    private const string AppVersion = "1.0.1";
+    private const string AppVersion = "1.0.2";
     private const string AppFolderName = "STORM KEYS";
     private const string ExeName = "StormKeys.exe";
     private const string IcoName = "app.ico";
@@ -714,22 +714,42 @@ public sealed class InstallerForm : Form
         this.Controls.Add(bottomPanel);
     }
 
+    private Bitmap? _headerLogoBitmap;
+
     private void HeaderPanel_Paint(object? sender, PaintEventArgs e)
     {
         var g = e.Graphics;
         g.SmoothingMode = SmoothingMode.AntiAlias;
+        g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+        g.PixelOffsetMode = PixelOffsetMode.HighQuality;
 
-        // Draw 3D logo icon
-        Rectangle iconRect = new Rectangle(24, 18, 52, 52);
-        using var iconPath = GetRoundedRectPath(iconRect, 12);
-        using var iconGrad = new LinearGradientBrush(iconRect, currentAccent, Color.FromArgb(6, 182, 212), 135f);
-        g.FillPath(iconGrad, iconPath);
-        using var pen = new Pen(Color.FromArgb(160, 255, 255, 255), 1.5f);
-        g.DrawPath(pen, iconPath);
+        // Draw authentic 3D logo icon
+        Rectangle iconRect = new Rectangle(24, 16, 56, 56);
+        if (_headerLogoBitmap == null && this.Icon != null)
+        {
+            try
+            {
+                using var bmp = this.Icon.ToBitmap();
+                _headerLogoBitmap = new Bitmap(bmp, new Size(56, 56));
+            }
+            catch { }
+        }
 
-        // Key glyph
-        using var font = new Font("Segoe UI Symbol", 22f, FontStyle.Bold);
-        TextRenderer.DrawText(g, "🔑", font, iconRect, Color.White, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+        if (_headerLogoBitmap != null)
+        {
+            // Soft neon glow under logo
+            using var shadowPath = GetRoundedRectPath(new Rectangle(22, 14, 60, 60), 16);
+            using var glowBrush = new SolidBrush(Color.FromArgb(45, currentAccent.R, currentAccent.G, currentAccent.B));
+            g.FillPath(glowBrush, shadowPath);
+
+            g.DrawImage(_headerLogoBitmap, iconRect);
+        }
+        else
+        {
+            using var iconPath = GetRoundedRectPath(iconRect, 14);
+            using var iconGrad = new LinearGradientBrush(iconRect, currentAccent, Color.FromArgb(6, 182, 212), 135f);
+            g.FillPath(iconGrad, iconPath);
+        }
 
         // Bottom separator
         using var sepPen = new Pen(Color.FromArgb(40, 32, 64), 1f);
