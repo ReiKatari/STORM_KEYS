@@ -64,6 +64,7 @@ settings.json
 
 # Dist & Installer Payloads
 dist/
+Files/
 installer/Payload.zip
 installer/bin/
 installer/obj/
