@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "StormKeys (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "StormKeys (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}
