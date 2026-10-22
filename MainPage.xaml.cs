@@ -139,6 +139,14 @@ public sealed partial class MainPage : Page
                 e.Handled = true;
                 return;
             }
+
+            // Диалог "О программе"
+            if (ViewModel.IsAboutDialogVisible)
+            {
+                ViewModel.IsAboutDialogVisible = false;
+                e.Handled = true;
+                return;
+            }
         }
     }
 
@@ -213,6 +221,11 @@ public sealed partial class MainPage : Page
     private void CloseSettingsDialog_Click(object sender, RoutedEventArgs e)
     {
         ViewModel.IsSettingsDialogVisible = false;
+    }
+
+    private void CloseAboutDialog_Click(object sender, RoutedEventArgs e)
+    {
+        ViewModel.IsAboutDialogVisible = false;
     }
 
     private void UnlockPasswordBox_KeyDown(object sender, KeyRoutedEventArgs e)

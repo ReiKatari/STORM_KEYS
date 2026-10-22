@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <Page
     x:Class="StormKeys.MainPage"
+    x:Name="RootPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -96,14 +97,14 @@
                             Background="{x:Bind ViewModel.CurrentAccentBrush, Mode=OneWay}"
                             Click="AddEntry_Click"
                             Foreground="#FFFFFF"
-                            ToolTipService.ToolTip="Добавить новый ключ или пароль">
+                            ToolTipService.ToolTip="{x:Bind ViewModel.UiTooltipAdd, Mode=OneWay}">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE710;" />
                                 <TextBlock FontWeight="SemiBold" Text="{x:Bind ViewModel.UiAdd, Mode=OneWay}" />
                             </StackPanel>
                         </Button>
 
-                        <Button Click="ImportMenu_Click" ToolTipService.ToolTip="Импорт ключей и паролей">
+                        <Button Click="ImportMenu_Click" ToolTipService.ToolTip="{x:Bind ViewModel.UiTooltipImport, Mode=OneWay}">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE8B5;" />
                                 <TextBlock Text="{x:Bind ViewModel.UiImport, Mode=OneWay}" />
@@ -124,7 +125,7 @@
                             </Button.Flyout>
                         </Button>
 
-                        <Button Click="ExportMenu_Click" ToolTipService.ToolTip="Экспорт хранилища">
+                        <Button Click="ExportMenu_Click" ToolTipService.ToolTip="{x:Bind ViewModel.UiTooltipExport, Mode=OneWay}">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xEDE1;" />
                                 <TextBlock Text="{x:Bind ViewModel.UiExport, Mode=OneWay}" />
@@ -141,11 +142,11 @@
                             <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE753;" />
                         </Button>
 
-                        <Button Click="OpenSettings_Click" ToolTipService.ToolTip="Настройки хранилища и облака">
+                        <Button Click="OpenSettings_Click" ToolTipService.ToolTip="{x:Bind ViewModel.UiTooltipSettings, Mode=OneWay}">
                             <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE713;" />
                         </Button>
 
-                        <Button Command="{x:Bind ViewModel.LockVaultCommand}" ToolTipService.ToolTip="Заблокировать хранилище (Ctrl+L)">
+                        <Button Command="{x:Bind ViewModel.LockVaultCommand}" ToolTipService.ToolTip="{x:Bind ViewModel.UiTooltipLock, Mode=OneWay}">
                             <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE72E;" />
                         </Button>
                     </StackPanel>
@@ -396,7 +397,7 @@
                                         Padding="6,4"
                                         Click="CopyUsername_Click"
                                         Tag="{Binding}"
-                                        ToolTipService.ToolTip="Скопировать логин">
+                                        ToolTipService.ToolTip="{Binding ElementName=RootPage, Path=ViewModel.UiTooltipCopyUsername}">
                                         <FontIcon
                                             FontFamily="Segoe Fluent Icons"
                                             FontSize="12"
@@ -420,7 +421,7 @@
                                             Padding="6,4"
                                             Click="CopySecret_Click"
                                             Tag="{Binding}"
-                                            ToolTipService.ToolTip="Скопировать пароль/ключ (буфер очистится автоматически)">
+                                            ToolTipService.ToolTip="{Binding ElementName=RootPage, Path=ViewModel.UiTooltipCopyPassword}">
                                             <FontIcon
                                                 FontFamily="Segoe Fluent Icons"
                                                 FontSize="12"
@@ -453,7 +454,7 @@
                                         Padding="8,6"
                                         Click="ShowCardDetails_Click"
                                         Tag="{Binding}"
-                                        ToolTipService.ToolTip="Стилизованная подсказка и детали">
+                                        ToolTipService.ToolTip="{Binding ElementName=RootPage, Path=ViewModel.UiTooltipCardDetails}">
                                         <FontIcon
                                             FontFamily="Segoe Fluent Icons"
                                             FontSize="14"
@@ -465,7 +466,7 @@
                                         Padding="8,6"
                                         Click="EditEntry_Click"
                                         Tag="{Binding}"
-                                        ToolTipService.ToolTip="Редактировать">
+                                        ToolTipService.ToolTip="{Binding ElementName=RootPage, Path=ViewModel.UiTooltipEdit}">
                                         <FontIcon
                                             FontFamily="Segoe Fluent Icons"
                                             FontSize="14"
@@ -476,7 +477,7 @@
                                         Padding="8,6"
                                         Click="DeleteEntry_Click"
                                         Tag="{Binding}"
-                                        ToolTipService.ToolTip="Удалить">
+                                        ToolTipService.ToolTip="{Binding ElementName=RootPage, Path=ViewModel.UiTooltipDelete}">
                                         <FontIcon
                                             FontFamily="Segoe Fluent Icons"
                                             FontSize="14"
@@ -574,7 +575,7 @@
                                 Grid.Column="1"
                                 VerticalAlignment="Bottom"
                                 Command="{x:Bind ViewModel.GeneratePasswordCommand}"
-                                ToolTipService.ToolTip="Сгенерировать надежный пароль">
+                                ToolTipService.ToolTip="{x:Bind ViewModel.UiTooltipGenPassword, Mode=OneWay}">
                                 <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE8D7;" />
                             </Button>
 
@@ -582,7 +583,7 @@
                                 Grid.Column="2"
                                 VerticalAlignment="Bottom"
                                 Command="{x:Bind ViewModel.GenerateLicenseKeyCommand}"
-                                ToolTipService.ToolTip="Сгенерировать формат ключа ПО (XXXXX-XXXXX...)">
+                                ToolTipService.ToolTip="{x:Bind ViewModel.UiTooltipGenSoftwareKey, Mode=OneWay}">
                                 <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE8A7;" />
                             </Button>
                         </Grid>
@@ -877,6 +878,91 @@
                             Click="CloseSettingsDialog_Click"
                             Content="{x:Bind ViewModel.UiSettingsClose, Mode=OneWay}" />
                     </Grid>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- ДИАЛОГ «О ПРОГРАММЕ» STORM KEYS (МОДАЛЬНЫЙ ОВЕРЛЕЙ) -->
+        <Grid Background="#7F000000" Visibility="{x:Bind BoolToVis(ViewModel.IsAboutDialogVisible), Mode=OneWay}">
+            <Border
+                Width="480"
+                Margin="24"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Background="{x:Bind ViewModel.CurrentHeaderBrush, Mode=OneWay}"
+                BorderBrush="{x:Bind ViewModel.CurrentCardStrokeBrush, Mode=OneWay}"
+                BorderThickness="1"
+                CornerRadius="16">
+                <StackPanel Padding="32" Spacing="20">
+                    <!-- Логотип приложения -->
+                    <StackPanel HorizontalAlignment="Center" Spacing="12">
+                        <Border
+                            Width="72"
+                            Height="72"
+                            HorizontalAlignment="Center"
+                            Background="{x:Bind ViewModel.CurrentAccentBrush, Mode=OneWay}"
+                            CornerRadius="18">
+                            <FontIcon
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                FontFamily="Segoe Fluent Icons"
+                                FontSize="36"
+                                Foreground="White"
+                                Glyph="&#xE8D7;" />
+                        </Border>
+                        <TextBlock
+                            HorizontalAlignment="Center"
+                            FontSize="22"
+                            FontWeight="Bold"
+                            Foreground="{x:Bind ViewModel.CurrentTextPrimaryBrush, Mode=OneWay}"
+                            Text="{x:Bind ViewModel.UiAboutTitle, Mode=OneWay}" />
+                        <TextBlock
+                            HorizontalAlignment="Center"
+                            FontSize="13"
+                            Foreground="{x:Bind ViewModel.CurrentAccentBrush, Mode=OneWay}"
+                            FontWeight="SemiBold"
+                            Text="{x:Bind ViewModel.UiAboutVersion, Mode=OneWay}" />
+                    </StackPanel>
+
+                    <!-- Описание и сертификация -->
+                    <Border
+                        Padding="16"
+                        Background="{ThemeResource LayerOnMicaBaseAltFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8">
+                        <StackPanel Spacing="8">
+                            <TextBlock
+                                FontSize="12"
+                                LineHeight="18"
+                                TextWrapping="Wrap"
+                                Foreground="{x:Bind ViewModel.CurrentTextPrimaryBrush, Mode=OneWay}"
+                                Text="{x:Bind ViewModel.UiAboutDesc, Mode=OneWay}" />
+
+                            <Border Height="1" Background="{ThemeResource CardStrokeColorDefaultBrush}" Margin="0,4" />
+
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <FontIcon FontFamily="Segoe Fluent Icons" Foreground="#107C41" Glyph="&#xE73E;" FontSize="14" />
+                                <TextBlock
+                                    FontSize="12"
+                                    FontWeight="SemiBold"
+                                    Foreground="#107C41"
+                                    Text="{x:Bind ViewModel.UiAboutPublisher, Mode=OneWay}" />
+                            </StackPanel>
+                            <TextBlock
+                                FontSize="11"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                Text="{x:Bind ViewModel.UiAboutCert, Mode=OneWay}" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Кнопка закрытия -->
+                    <Button
+                        HorizontalAlignment="Stretch"
+                        Background="{x:Bind ViewModel.CurrentAccentBrush, Mode=OneWay}"
+                        Click="CloseAboutDialog_Click"
+                        Foreground="#FFFFFF"
+                        Content="{x:Bind ViewModel.UiAboutClose, Mode=OneWay}" />
                 </StackPanel>
             </Border>
         </Grid>

@@ -65,6 +65,8 @@ settings.json
 # Dist & Installer Payloads
 dist/
 Files/
+publish_app/
 installer/Payload.zip
 installer/bin/
 installer/obj/
+scratch/

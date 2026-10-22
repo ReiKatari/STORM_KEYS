@@ -6,7 +6,6 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:local="using:StormKeys"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:tb="using:H.NotifyIcon"
     Title="STORM KEYS"
     mc:Ignorable="d">
     <Window.SystemBackdrop>
@@ -26,19 +25,5 @@
         </TitleBar>
 
         <Frame x:Name="RootFrame" Grid.Row="1" />
-
-        <tb:TaskbarIcon
-            x:Name="StormTrayIcon"
-            ToolTipText="STORM KEYS - Защищенное хранилище ключей и паролей"
-            IconSource="/Assets/AppIcon.ico">
-            <tb:TaskbarIcon.ContextFlyout>
-                <MenuFlyout>
-                    <MenuFlyoutItem x:Name="MenuOpenApp" Text="Развернуть STORM KEYS" Click="MenuOpenApp_Click" />
-                    <MenuFlyoutItem x:Name="MenuLockApp" Text="Заблокировать хранилище" Click="MenuLockApp_Click" />
-                    <MenuFlyoutSeparator />
-                    <MenuFlyoutItem x:Name="MenuExitApp" Text="Выход" Click="MenuExitApp_Click" />
-                </MenuFlyout>
-            </tb:TaskbarIcon.ContextFlyout>
-        </tb:TaskbarIcon>
     </Grid>
 </Window>

@@ -50,6 +50,9 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private string _updateStatusText = "Проверить обновления";
 
+    [ObservableProperty]
+    private bool _isAboutDialogVisible;
+
     // Состояния хранилища
     [ObservableProperty]
     private bool _isVaultUninitialized;
@@ -238,6 +241,24 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _uiPlatformCert = "STORM INTEGRATED PLATFORM";
     [ObservableProperty] private string _uiPlatformCertDesc = "Шифрование AES-256-GCM • Хеширование Argon2id • Экосистема STORM";
     [ObservableProperty] private string _uiUpdatesHeader = "Обновления STORM KEYS";
+    [ObservableProperty] private string _uiTooltipAdd = "Добавить новый ключ или пароль";
+    [ObservableProperty] private string _uiTooltipImport = "Импорт ключей и паролей";
+    [ObservableProperty] private string _uiTooltipExport = "Экспорт хранилища";
+    [ObservableProperty] private string _uiTooltipSettings = "Настройки хранилища и облака";
+    [ObservableProperty] private string _uiTooltipLock = "Заблокировать хранилище (Ctrl+L)";
+    [ObservableProperty] private string _uiTooltipCopyUsername = "Скопировать логин";
+    [ObservableProperty] private string _uiTooltipCopyPassword = "Скопировать пароль/ключ (буфер очистится автоматически)";
+    [ObservableProperty] private string _uiTooltipCardDetails = "Стилизованная подсказка и детали";
+    [ObservableProperty] private string _uiTooltipEdit = "Редактировать";
+    [ObservableProperty] private string _uiTooltipDelete = "Удалить";
+    [ObservableProperty] private string _uiTooltipGenPassword = "Сгенерировать надежный пароль";
+    [ObservableProperty] private string _uiTooltipGenSoftwareKey = "Сгенерировать формат ключа ПО (XXXXX-XXXXX...)";
+    [ObservableProperty] private string _uiAboutTitle = "О программе STORM KEYS";
+    [ObservableProperty] private string _uiAboutPublisher = "Проверенный издатель: STORM TEAM";
+    [ObservableProperty] private string _uiAboutVersion = "Версия 1.0.0";
+    [ObservableProperty] private string _uiAboutCert = "Сертификат: STORM INTEGRATED PLATFORM";
+    [ObservableProperty] private string _uiAboutDesc = "Защищённое хранилище цифровых ключей, паролей и лицензий с шифрованием AES-256-GCM и деривацией Argon2id.";
+    [ObservableProperty] private string _uiAboutClose = "Закрыть";
 
     // Стилизованная подсказка (TeachingTip)
     [ObservableProperty]
@@ -831,6 +852,24 @@ public partial class MainViewModel : ObservableObject
             UiPlatformCert = LocalizationService.GetString("PlatformCert", langCode);
             UiPlatformCertDesc = LocalizationService.GetString("PlatformCertDesc", langCode);
             UiUpdatesHeader = LocalizationService.GetString("UpdatesHeader", langCode);
+            UiTooltipAdd = LocalizationService.GetString("TooltipAdd", langCode);
+            UiTooltipImport = LocalizationService.GetString("TooltipImport", langCode);
+            UiTooltipExport = LocalizationService.GetString("TooltipExport", langCode);
+            UiTooltipSettings = LocalizationService.GetString("TooltipSettings", langCode);
+            UiTooltipLock = LocalizationService.GetString("TooltipLock", langCode);
+            UiTooltipCopyUsername = LocalizationService.GetString("TooltipCopyUsername", langCode);
+            UiTooltipCopyPassword = LocalizationService.GetString("TooltipCopyPassword", langCode);
+            UiTooltipCardDetails = LocalizationService.GetString("TooltipCardDetails", langCode);
+            UiTooltipEdit = LocalizationService.GetString("TooltipEdit", langCode);
+            UiTooltipDelete = LocalizationService.GetString("TooltipDelete", langCode);
+            UiTooltipGenPassword = LocalizationService.GetString("TooltipGenPassword", langCode);
+            UiTooltipGenSoftwareKey = LocalizationService.GetString("TooltipGenSoftwareKey", langCode);
+            UiAboutTitle = LocalizationService.GetString("AboutTitle", langCode);
+            UiAboutPublisher = LocalizationService.GetString("AboutPublisher", langCode);
+            UiAboutVersion = LocalizationService.GetString("AboutVersion", langCode);
+            UiAboutCert = LocalizationService.GetString("AboutCert", langCode);
+            UiAboutDesc = LocalizationService.GetString("AboutDesc", langCode);
+            UiAboutClose = LocalizationService.GetString("AboutClose", langCode);
         }
         catch { }
     }

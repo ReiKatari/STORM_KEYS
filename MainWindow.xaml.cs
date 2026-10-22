@@ -3,6 +3,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using StormKeys.Services;
 using StormKeys.ViewModels;
 
 namespace StormKeys;
@@ -10,6 +11,7 @@ namespace StormKeys;
 public sealed partial class MainWindow : Window
 {
     private bool _isQuittingFromTray;
+    private StormTrayService? _trayService;
 
     public static MainWindow? Instance { get; private set; }
 
@@ -47,6 +49,9 @@ public sealed partial class MainWindow : Window
         Title = "STORM KEYS";
         AppWindow.Title = "STORM KEYS";
 
+        // Получаем дескриптор Win32 окна
+        var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+
         // Загрузка и установка иконки окна и панели задач
         try
         {
@@ -55,7 +60,6 @@ public sealed partial class MainWindow : Window
             {
                 AppWindow.SetIcon(iconPath);
 
-                var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
                 if (hWnd != IntPtr.Zero)
                 {
                     var hSmall = LoadImage(IntPtr.Zero, iconPath, IMAGE_ICON, 16, 16, LR_LOADFROMFILE);
@@ -82,8 +86,16 @@ public sealed partial class MainWindow : Window
             }
         };
 
-        // Клик левой кнопкой мыши по иконке трея разворачивает окно
-        StormTrayIcon.LeftClickCommand = new CommunityToolkit.Mvvm.Input.RelayCommand(RestoreWindow);
+        // Инициализация нативного сервиса системного трея со 100% надёжностью
+        if (hWnd != IntPtr.Zero)
+        {
+            _trayService = new StormTrayService(hWnd)
+            {
+                OnRestoreRequested = RestoreWindow,
+                OnAboutRequested = ShowAboutDialog,
+                OnExitRequested = ExitApplication
+            };
+        }
 
         // Навигация на главную страницу
         RootFrame.Navigate(typeof(MainPage));
@@ -96,30 +108,38 @@ public sealed partial class MainWindow : Window
         Activate();
     }
 
-    private void MenuOpenApp_Click(object sender, RoutedEventArgs e)
+    public void ShowAboutDialog()
     {
         RestoreWindow();
-    }
-
-    private void MenuLockApp_Click(object sender, RoutedEventArgs e)
-    {
         if (RootFrame.Content is MainPage page && page.ViewModel != null)
         {
-            _ = page.ViewModel.LockVaultCommand.ExecuteAsync(null);
+            page.ViewModel.IsAboutDialogVisible = true;
         }
-        RestoreWindow();
     }
 
-    private void MenuExitApp_Click(object sender, RoutedEventArgs e)
+    public void ExitApplication()
     {
         _isQuittingFromTray = true;
+
         try
         {
-            StormTrayIcon.Dispose();
+            _trayService?.Dispose();
         }
         catch { }
 
-        this.Close();
-        Application.Current.Exit();
+        try
+        {
+            this.Close();
+        }
+        catch { }
+
+        try
+        {
+            Application.Current.Exit();
+        }
+        catch { }
+
+        // Гарантированное завершение процесса приложения
+        Environment.Exit(0);
     }
 }

@@ -322,6 +322,15 @@ public static class Program
 
             var save = LocalizationService.GetString("SettingsSave", lang.Code);
             AssertTrue(!string.IsNullOrWhiteSpace(save), $"Строка SettingsSave для {lang.Code} не должна быть пустой");
+
+            var tooltipAdd = LocalizationService.GetString("TooltipAdd", lang.Code);
+            AssertTrue(!string.IsNullOrWhiteSpace(tooltipAdd), $"Строка TooltipAdd для {lang.Code} не должна быть пустой");
+
+            var aboutTitle = LocalizationService.GetString("AboutTitle", lang.Code);
+            AssertTrue(!string.IsNullOrWhiteSpace(aboutTitle), $"Строка AboutTitle для {lang.Code} не должна быть пустой");
+
+            var aboutPub = LocalizationService.GetString("AboutPublisher", lang.Code);
+            AssertTrue(!string.IsNullOrWhiteSpace(aboutPub), $"Строка AboutPublisher для {lang.Code} не должна быть пустой");
         }
 
         return Task.CompletedTask;
