@@ -143,6 +143,24 @@ public static class PasswordGenerator
         return sb.ToString();
     }
 
+    /// <summary>
+    /// Генерирует криптографические API-токены, секреты JWT (256-bit Hex / Base64Url / Bearer / UUID v4) и ключи SSH.
+    /// </summary>
+    public static string GenerateApiToken(string format = "Hex256")
+    {
+        byte[] bytes = new byte[32]; // 256 бит энтропии
+        RandomNumberGenerator.Fill(bytes);
+
+        return (format?.Trim().ToUpperInvariant()) switch
+        {
+            "BASE64" or "JWT" => Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_'),
+            "UUID" or "GUID" => Guid.NewGuid().ToString("D"),
+            "BEARER" => "sk_live_" + Convert.ToHexString(bytes).ToLowerInvariant()[..48],
+            "SSH" => "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI" + Convert.ToBase64String(bytes).TrimEnd('=') + " storm@keys",
+            _ => Convert.ToHexString(bytes).ToLowerInvariant()
+        };
+    }
+
     public static double CalculateEntropyBits(string password)
     {
         if (string.IsNullOrEmpty(password))

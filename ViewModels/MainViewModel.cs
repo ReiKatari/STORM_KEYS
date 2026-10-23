@@ -105,6 +105,99 @@ public partial class MainViewModel : ObservableObject
     private bool _canUndoDelete;
 
     private KeyEntry? _lastDeletedEntry;
+    private string _activeSessionMasterPassword = string.Empty;
+
+    // Новые возможности STORM KEYS 1.0.5
+    [ObservableProperty]
+    private int _trashCount;
+
+    [ObservableProperty]
+    private int _oldPasswordsCount;
+
+    [ObservableProperty]
+    private bool _isMiniModeActive;
+
+    [ObservableProperty]
+    private bool _settingsScreenCaptureProtection;
+
+    [ObservableProperty]
+    private string _settingsKeyfilePath = string.Empty;
+
+    [ObservableProperty]
+    private string _settingsDuressPasswordInput = string.Empty;
+
+    [ObservableProperty]
+    private string _backupSlotsSummaryText = string.Empty;
+
+    [ObservableProperty]
+    private bool _isSecurityAuditDialogVisible;
+
+    [ObservableProperty]
+    private bool _isQrMatrixDialogVisible;
+
+    [ObservableProperty]
+    private string _qrMatrixDialogTitle = string.Empty;
+
+    [ObservableProperty]
+    private string _qrMatrixDialogSubtitle = string.Empty;
+
+    [ObservableProperty]
+    private string _qrMatrixDialogArt = string.Empty;
+
+    [ObservableProperty]
+    private string _qrMatrixTitle = string.Empty;
+
+    [ObservableProperty]
+    private string _qrMatrixSubtitle = string.Empty;
+
+    [ObservableProperty]
+    private string _qrMatrixArt = string.Empty;
+
+    [ObservableProperty]
+    private string _qrMatrixRawPayload = string.Empty;
+
+    [ObservableProperty]
+    private string _duressStatusText = "Не задан";
+
+    [ObservableProperty]
+    private string _securityAuditReportText = string.Empty;
+
+    public string EditAttachmentsSummary => EditAttachmentsSummaryText;
+
+    public string DuressPasswordInput
+    {
+        get => SettingsDuressPasswordInput;
+        set
+        {
+            if (SettingsDuressPasswordInput != value)
+            {
+                SettingsDuressPasswordInput = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    [ObservableProperty]
+    private bool _hasMatchedWindowEntry;
+
+    [ObservableProperty]
+    private string _matchedWindowBannerText = string.Empty;
+
+    private KeyEntry? _matchedWindowEntry;
+
+    [ObservableProperty]
+    private string _editAutoTypeSequence = "{USER}{TAB}{PASS}{ENTER}";
+
+    [ObservableProperty]
+    private string _editRecoveryCodesText = string.Empty;
+
+    [ObservableProperty]
+    private string _editAttachmentsSummaryText = "Нет прикреплённых файлов (до 2 МБ)";
+
+    [ObservableProperty]
+    private bool _hasEditAttachments;
+
+    private List<EncryptedAttachment> _editAttachmentsList = new();
 
     [ObservableProperty]
     private string _oldMasterPasswordInput = string.Empty;
@@ -495,7 +588,22 @@ public partial class MainViewModel : ObservableObject
         SettingsCloudFolder = _vaultService.Settings.CloudSyncFolderPath;
         SettingsCloudEnabled = _vaultService.Settings.CloudSyncEnabled;
         SettingsAutoLockMinutes = _vaultService.Settings.AutoLockMinutes;
-        SettingsWindowsHelloEnabled = _vaultService.Settings.WindowsHelloEnabled && _windowsHelloService.IsEnrolled();
+        SettingsWindowsHelloEnabled = _vaultService.Settings.WindowsHelloEnabled;
+        IsWindowsHelloEnrolled = _windowsHelloService.IsEnrolled();
+        SettingsScreenCaptureProtection = _vaultService.Settings.ScreenCaptureProtection;
+        SettingsKeyfilePath = _vaultService.Settings.KeyfilePath ?? string.Empty;
+        IsMiniModeActive = _vaultService.Settings.AlwaysOnTopMiniMode;
+        BackupSlotsSummaryText = FormatBackupSlots(_vaultService.GetBackupSlotsSummary());
+        DuressStatusText = string.IsNullOrEmpty(_vaultService.Settings.DuressPasswordHash) ? "Не задан" : "Активен (защищён)";
+
+        if (SettingsScreenCaptureProtection)
+        {
+            MainWindow.Instance?.SetScreenCaptureProtection(true);
+        }
+        if (IsMiniModeActive)
+        {
+            MainWindow.Instance?.SetMiniMode(true);
+        }
         var savedTheme = _vaultService.Settings.Theme ?? "MIDNIGHT";
         SelectedTheme = AvailableThemes.FirstOrDefault(t => t.StartsWith(savedTheme, StringComparison.OrdinalIgnoreCase)) ?? AvailableThemes[0];
 
@@ -764,6 +872,9 @@ public partial class MainViewModel : ObservableObject
             }
         }
 
+        // Идея #1: Умное распознавание активного окна (Active Window Matcher)
+        CheckActiveWindowMatcher();
+
         // Автоблокировка при неактивности пользователя
         if (!IsVaultLocked && _vaultService.Settings.AutoLockMinutes > 0)
         {
@@ -776,6 +887,73 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
+    private static string FormatBackupSlots(List<BackupSlotInfo> slots)
+    {
+        if (slots == null || slots.Count == 0)
+            return "Резервные слоты .bak1..3 пока не созданы (создаются автоматически при сохранении).";
+        return string.Join(" • ", slots.Select(s => $".bak{s.SlotNumber}: {s.LastWriteTime:dd.MM HH:mm} ({s.SizeBytes / 1024.0:F1} КБ)"));
+    }
+
+    public void UpdateActiveWindowMatch(ActiveWindowInfo? info = null)
+    {
+        CheckActiveWindowMatcher();
+    }
+
+    public Task ExecutePanicLockAsync()
+    {
+        return TriggerEmergencyPanicLockAsync();
+    }
+
+    private void CheckActiveWindowMatcher()
+    {
+        try
+        {
+            if (IsVaultLocked || _vaultService.CurrentContainer == null || MainWindow.Instance == null)
+            {
+                HasMatchedWindowEntry = false;
+                return;
+            }
+
+            IntPtr hwnd = WinRT.Interop.WindowNative.GetWindowHandle(MainWindow.Instance);
+            var (prevHwnd, winTitle, procName) = AutoTypeHelper.GetPreviousWindowInfo(hwnd);
+            if (prevHwnd == IntPtr.Zero || (string.IsNullOrWhiteSpace(winTitle) && string.IsNullOrWhiteSpace(procName)))
+            {
+                HasMatchedWindowEntry = false;
+                return;
+            }
+
+            var match = _vaultService.CurrentContainer.Entries
+                .Where(e => !e.IsDeleted)
+                .FirstOrDefault(e => e.MatchesActiveWindow(winTitle, procName));
+
+            if (match != null)
+            {
+                _matchedWindowEntry = match;
+                HasMatchedWindowEntry = true;
+                string targetName = !string.IsNullOrWhiteSpace(procName) ? procName : winTitle;
+                MatchedWindowBannerText = $"Активное окно «{targetName}» → {match.Title}";
+            }
+            else
+            {
+                _matchedWindowEntry = null;
+                HasMatchedWindowEntry = false;
+            }
+        }
+        catch
+        {
+            HasMatchedWindowEntry = false;
+        }
+    }
+
+    [RelayCommand]
+    public async Task AutoTypeMatchedWindowAsync()
+    {
+        if (_matchedWindowEntry != null)
+        {
+            await AutoTypeEntryAsync(_matchedWindowEntry);
+        }
+    }
+
     [RelayCommand]
     public async Task UnlockWithWindowsHelloAsync()
     {
@@ -784,16 +962,18 @@ public partial class MainViewModel : ObservableObject
         MasterPasswordErrorMessage = string.Empty;
         try
         {
-            string? masterPassword = await _windowsHelloService.UnlockWithHelloAsync();
+            IntPtr hwnd = MainWindow.Instance != null ? WinRT.Interop.WindowNative.GetWindowHandle(MainWindow.Instance) : IntPtr.Zero;
+            string? masterPassword = await _windowsHelloService.UnlockWithHelloAsync(hwnd);
             if (string.IsNullOrEmpty(masterPassword))
             {
-                MasterPasswordErrorMessage = "Биометрическая аутентификация Windows Hello отменена или не пройдена.";
+                MasterPasswordErrorMessage = "Вход через Windows Hello отменён или ещё не привязан. Введите мастер-пароль один раз.";
                 return;
             }
 
             bool ok = await _vaultService.UnlockVaultAsync(masterPassword);
             if (ok)
             {
+                _activeSessionMasterPassword = masterPassword;
                 IsVaultLocked = false;
                 MasterPasswordInput = string.Empty;
                 ConfirmPasswordInput = string.Empty;
@@ -802,14 +982,14 @@ public partial class MainViewModel : ObservableObject
 
                 if (_dispatcherQueue != null)
                 {
-                    _notificationService.StartPeriodicCheck(() => _vaultService.CurrentContainer?.Entries ?? Enumerable.Empty<KeyEntry>(), _dispatcherQueue);
+                    _notificationService.StartPeriodicCheck(() => _vaultService.CurrentContainer?.Entries.Where(e => !e.IsDeleted) ?? Enumerable.Empty<KeyEntry>(), _dispatcherQueue);
                 }
 
                 StatusMessage = "Хранилище успешно разблокировано через Windows Hello!";
             }
             else
             {
-                MasterPasswordErrorMessage = "Сохранённый ключ Windows Hello не подошёл к хранилищу.";
+                MasterPasswordErrorMessage = "Сохранённый ключ Windows Hello устарел. Войдите по мастер-паролю для авто-обновления.";
             }
         }
         catch (Exception ex)
@@ -851,6 +1031,7 @@ public partial class MainViewModel : ObservableObject
 
                 string pwd = MasterPasswordInput;
                 await _vaultService.CreateVaultAsync(pwd);
+                _activeSessionMasterPassword = pwd;
                 IsVaultUninitialized = false;
                 IsVaultLocked = false;
                 MasterPasswordInput = string.Empty;
@@ -858,14 +1039,17 @@ public partial class MainViewModel : ObservableObject
                 RefreshFilteredList();
                 UpdateTotpCodes();
 
-                if (SettingsWindowsHelloEnabled && !IsWindowsHelloEnrolled)
+                // Бесшовное тихое сохранение DPAPI-контейнера без повторного всплытия окна PIN!
+                if (_vaultService.Settings.WindowsHelloEnabled || SettingsWindowsHelloEnabled)
                 {
-                    _ = _windowsHelloService.EnrollAsync(pwd);
+                    await _windowsHelloService.SaveEncryptedCredentialsSilentAsync(pwd);
+                    IsWindowsHelloEnrolled = _windowsHelloService.IsEnrolled();
+                    SettingsWindowsHelloEnabled = IsWindowsHelloEnrolled;
                 }
 
                 if (_dispatcherQueue != null)
                 {
-                    _notificationService.StartPeriodicCheck(() => _vaultService.CurrentContainer?.Entries ?? Enumerable.Empty<KeyEntry>(), _dispatcherQueue);
+                    _notificationService.StartPeriodicCheck(() => _vaultService.CurrentContainer?.Entries.Where(e => !e.IsDeleted) ?? Enumerable.Empty<KeyEntry>(), _dispatcherQueue);
                 }
 
                 StatusMessage = "Новое зашифрованное хранилище успешно создано!";
@@ -876,20 +1060,24 @@ public partial class MainViewModel : ObservableObject
                 bool success = await _vaultService.UnlockVaultAsync(pwd);
                 if (success)
                 {
+                    _activeSessionMasterPassword = pwd;
                     IsVaultLocked = false;
                     MasterPasswordInput = string.Empty;
                     ConfirmPasswordInput = string.Empty;
                     RefreshFilteredList();
                     UpdateTotpCodes();
 
-                    if (SettingsWindowsHelloEnabled && !IsWindowsHelloEnrolled)
+                    // Тихое обновление контейнера Windows Hello при успешном входе по мастер-паролю (только для реального сейфа)
+                    if (!_vaultService.IsDecoySession && (_vaultService.Settings.WindowsHelloEnabled || SettingsWindowsHelloEnabled))
                     {
-                        _ = _windowsHelloService.EnrollAsync(pwd);
+                        await _windowsHelloService.SaveEncryptedCredentialsSilentAsync(pwd);
+                        IsWindowsHelloEnrolled = _windowsHelloService.IsEnrolled();
+                        SettingsWindowsHelloEnabled = IsWindowsHelloEnrolled;
                     }
 
                     if (_dispatcherQueue != null)
                     {
-                        _notificationService.StartPeriodicCheck(() => _vaultService.CurrentContainer?.Entries ?? Enumerable.Empty<KeyEntry>(), _dispatcherQueue);
+                        _notificationService.StartPeriodicCheck(() => _vaultService.CurrentContainer?.Entries.Where(e => !e.IsDeleted) ?? Enumerable.Empty<KeyEntry>(), _dispatcherQueue);
                     }
 
                     StatusMessage = "Хранилище успешно разблокировано.";
@@ -913,12 +1101,14 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     public async Task LockVaultAsync()
     {
+        _activeSessionMasterPassword = string.Empty;
         await _vaultService.LockVaultAsync();
         IsVaultLocked = true;
         MasterPasswordInput = string.Empty;
         ConfirmPasswordInput = string.Empty;
         FilteredEntries.Clear();
         SelectedEntry = null;
+        HasMatchedWindowEntry = false;
         StatusMessage = "Хранилище защищено и заблокировано.";
     }
 
@@ -927,16 +1117,20 @@ public partial class MainViewModel : ObservableObject
         if (_vaultService.CurrentContainer == null)
             return;
 
-        var allEntries = _vaultService.CurrentContainer.Entries;
+        var rawEntries = _vaultService.CurrentContainer.Entries;
+        var allEntries = rawEntries.Where(e => !e.IsDeleted).ToList();
+        var deletedEntries = rawEntries.Where(e => e.IsDeleted).ToList();
 
+        TrashCount = deletedEntries.Count;
         TotalEntriesCount = allEntries.Count;
-        IsVaultEmpty = TotalEntriesCount == 0;
+        IsVaultEmpty = TotalEntriesCount == 0 && ActiveFilterChip != "Trash";
         ExpiringSoonCount = allEntries.Count(e => e.IsExpiringSoon);
         ExpiredCount = allEntries.Count(e => e.IsExpired);
         ActiveCount = allEntries.Count(e => !e.IsExpired);
         FavoritesCount = allEntries.Count(e => e.IsFavorite);
         BreachedCount = allEntries.Count(e => e.IsPwnedBreached);
         WeakPasswordsCount = allEntries.Count(e => !string.IsNullOrEmpty(e.SecretValue) && PasswordGenerator.EvaluateStrength(e.SecretValue).Score <= 2);
+        OldPasswordsCount = allEntries.Count(e => (DateTimeOffset.UtcNow - e.ModifiedAt).TotalDays > 365);
 
         var dupGroups = allEntries.Where(e => !string.IsNullOrEmpty(e.SecretValue))
                                   .GroupBy(e => e.SecretValue)
@@ -948,8 +1142,9 @@ public partial class MainViewModel : ObservableObject
         ExpiringRatio = (double)ExpiringSoonCount / total;
         ExpiredRatio = (double)ExpiredCount / total;
         HealthScoreText = TotalEntriesCount == 0 ? "100%" : $"{(double)ActiveCount / total * 100:F0}%";
+        SecurityAuditReportText = $"Всего записей: {TotalEntriesCount} • Активных: {ActiveCount} • Слабых паролей: {WeakPasswordsCount} • Дубликатов: {DuplicatePasswordsCount} • В утечках (HIBP): {BreachedCount} • Старше 1 года: {OldPasswordsCount} • В корзине: {TrashCount}";
 
-        IEnumerable<KeyEntry> query = allEntries;
+        IEnumerable<KeyEntry> query = ActiveFilterChip == "Trash" ? deletedEntries : allEntries;
 
         var duplicateSecrets = new HashSet<string>(
             allEntries.Where(e => !string.IsNullOrEmpty(e.SecretValue))
@@ -981,8 +1176,8 @@ public partial class MainViewModel : ObservableObject
             });
         }
 
-        // Фильтрация по быстрым чипам (включая Слабые и Дубликаты)
-        if (!string.IsNullOrEmpty(ActiveFilterChip) && ActiveFilterChip != "All")
+        // Фильтрация по быстрым чипам (включая Слабые, Дубликаты, Старые и Корзину)
+        if (!string.IsNullOrEmpty(ActiveFilterChip) && ActiveFilterChip != "All" && ActiveFilterChip != "Trash")
         {
             query = ActiveFilterChip switch
             {
@@ -991,6 +1186,7 @@ public partial class MainViewModel : ObservableObject
                 "Weak" => query.Where(e => !string.IsNullOrEmpty(e.SecretValue) && PasswordGenerator.EvaluateStrength(e.SecretValue).Score <= 2),
                 "Duplicates" => query.Where(e => !string.IsNullOrEmpty(e.SecretValue) && duplicateSecrets.Contains(e.SecretValue)),
                 "Expiring" => query.Where(e => e.IsExpiringSoon || e.IsExpired),
+                "Old" => query.Where(e => (DateTimeOffset.UtcNow - e.ModifiedAt).TotalDays > 365),
                 "Account" => query.Where(e => e.Category == KeyCategory.Account),
                 "License" => query.Where(e => e.Category == KeyCategory.License),
                 "ApiKey" => query.Where(e => e.Category == KeyCategory.ApiKey),
@@ -1058,7 +1254,7 @@ public partial class MainViewModel : ObservableObject
     public void OpenAddDialog()
     {
         IsNewEntry = true;
-        EditDialogHeader = "Новая запись (все форматы, иконки, генератор, 2FA)";
+        EditDialogHeader = "Новая запись (все форматы, иконки, генератор, 2FA, макросы, вложения)";
         EditTitle = string.Empty;
         EditCategory = KeyCategory.Account;
         EditCustomIconGlyph = string.Empty;
@@ -1071,11 +1267,86 @@ public partial class MainViewModel : ObservableObject
         EditTotpSecret = string.Empty;
         EditTagsText = string.Empty;
         EditCustomFieldsText = string.Empty;
+        EditAutoTypeSequence = "{USER}{TAB}{PASS}{ENTER}";
+        EditRecoveryCodesText = string.Empty;
+        _editAttachmentsList = new();
+        UpdateEditAttachmentsSummary();
         HasPasswordHistory = false;
         EditPasswordHistoryText = string.Empty;
         UpdateEditPreviewGlyph();
         UpdateEditDialogTotpPreview();
         IsEditDialogVisible = true;
+    }
+
+    private void UpdateEditAttachmentsSummary()
+    {
+        HasEditAttachments = _editAttachmentsList.Count > 0;
+        if (!HasEditAttachments)
+        {
+            EditAttachmentsSummaryText = "Нет прикреплённых файлов (до 2 МБ: .pem, .pfx, .ppk, .ovpn, .lic)";
+        }
+        else
+        {
+            long totalBytes = _editAttachmentsList.Sum(a => a.SizeBytes);
+            EditAttachmentsSummaryText = $"Прикреплено файлов: {_editAttachmentsList.Count} ({totalBytes / 1024.0:F1} КБ) — {string.Join(", ", _editAttachmentsList.Select(a => a.FileName))}";
+        }
+        OnPropertyChanged(nameof(EditAttachmentsSummary));
+    }
+
+    public async Task AttachFileToEditDialogAsync(string filePath)
+    {
+        try
+        {
+            var fi = new FileInfo(filePath);
+            if (!fi.Exists) return;
+            if (fi.Length > 2 * 1024 * 1024)
+            {
+                StatusMessage = "Максимальный размер вложения внутри карточки — 2 МБ.";
+                return;
+            }
+            byte[] bytes = await File.ReadAllBytesAsync(filePath);
+            _editAttachmentsList.Add(new EncryptedAttachment
+            {
+                FileName = fi.Name,
+                SizeBytes = fi.Length,
+                Base64Data = Convert.ToBase64String(bytes),
+                AddedAt = DateTimeOffset.UtcNow
+            });
+            UpdateEditAttachmentsSummary();
+            StatusMessage = $"Файл «{fi.Name}» прикреплён и будет зашифрован внутри контейнера.";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Ошибка прикрепления файла: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    public void ClearEditAttachments()
+    {
+        _editAttachmentsList.Clear();
+        UpdateEditAttachmentsSummary();
+        StatusMessage = "Вложения очищены.";
+    }
+
+    public async Task ExportAttachmentsToFolderAsync(KeyEntry? entry, string folderPath)
+    {
+        var list = entry != null ? entry.Attachments : _editAttachmentsList;
+        if (list == null || list.Count == 0 || !Directory.Exists(folderPath)) return;
+
+        int saved = 0;
+        foreach (var att in list)
+        {
+            try
+            {
+                byte[] bytes = Convert.FromBase64String(att.Base64Data);
+                string outPath = Path.Combine(folderPath, att.FileName);
+                await File.WriteAllBytesAsync(outPath, bytes);
+                saved++;
+            }
+            catch { }
+        }
+        StatusMessage = $"Извлечено и сохранено зашифрованных вложений: {saved} шт.";
     }
 
     [RelayCommand]
@@ -1213,6 +1484,22 @@ public partial class MainViewModel : ObservableObject
         EditCustomFieldsText = entry.CustomFields != null && entry.CustomFields.Count > 0
             ? string.Join(Environment.NewLine, entry.CustomFields.Select(kv => $"{kv.Key}: {kv.Value}"))
             : string.Empty;
+        EditAutoTypeSequence = string.IsNullOrWhiteSpace(entry.AutoTypeSequence)
+            ? "{USER}{TAB}{PASS}{ENTER}"
+            : entry.AutoTypeSequence;
+        EditRecoveryCodesText = entry.RecoveryCodes != null && entry.RecoveryCodes.Count > 0
+            ? string.Join(Environment.NewLine, entry.RecoveryCodes.Select(r => r.IsUsed ? $"{r.Code} [USED]" : r.Code))
+            : string.Empty;
+        _editAttachmentsList = entry.Attachments != null
+            ? entry.Attachments.Select(a => new EncryptedAttachment
+            {
+                FileName = a.FileName,
+                SizeBytes = a.SizeBytes,
+                Base64Data = a.Base64Data,
+                AddedAt = a.AddedAt
+            }).ToList()
+            : new List<EncryptedAttachment>();
+        UpdateEditAttachmentsSummary();
         HasPasswordHistory = entry.PasswordHistory != null && entry.PasswordHistory.Count > 0;
         EditPasswordHistoryText = HasPasswordHistory
             ? $"В истории {entry.PasswordHistory!.Count} пред. паролей (посл. от {entry.PasswordHistory[0].ChangedAt:dd.MM.yyyy HH:mm})"
@@ -1261,6 +1548,50 @@ public partial class MainViewModel : ObservableObject
 
         try
         {
+            // Идея #10: Терминальный лаунчер 1 кликом (SSH / RDP)
+            if (entry.Category == KeyCategory.Server || entry.Category == KeyCategory.Certificate ||
+                target.StartsWith("ssh://", StringComparison.OrdinalIgnoreCase) ||
+                target.StartsWith("rdp://", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!string.IsNullOrEmpty(entry.SecretValue) && _dispatcherQueue != null)
+                {
+                    int timeout = _vaultService.Settings.ClearClipboardAfterSeconds ? _vaultService.Settings.ClipboardClearTimeout : 0;
+                    ClipboardHelper.CopyToClipboard(entry.SecretValue, _dispatcherQueue, timeout);
+                }
+
+                if (target.StartsWith("rdp://", StringComparison.OrdinalIgnoreCase) ||
+                    (entry.CustomFields != null && entry.CustomFields.Values.Any(v => v.Contains("RDP", StringComparison.OrdinalIgnoreCase) || v.Contains("3389"))))
+                {
+                    string host = target.Replace("rdp://", "", StringComparison.OrdinalIgnoreCase).TrimEnd('/');
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = "mstsc.exe",
+                        Arguments = $"/v:{host}",
+                        UseShellExecute = true
+                    });
+                    StatusMessage = $"Запущен RDP сеанс к {host} (пароль скопирован в буфер)!";
+                    return;
+                }
+
+                if (target.StartsWith("ssh://", StringComparison.OrdinalIgnoreCase) ||
+                    (!target.StartsWith("http", StringComparison.OrdinalIgnoreCase) && !entry.IsAppBinding))
+                {
+                    string host = target.Replace("ssh://", "", StringComparison.OrdinalIgnoreCase).TrimEnd('/');
+                    string userHost = !string.IsNullOrWhiteSpace(entry.UsernameOrEmail) && !host.Contains('@')
+                        ? $"{entry.UsernameOrEmail}@{host}"
+                        : host;
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = "cmd.exe",
+                        Arguments = $"/c start ssh {userHost}",
+                        UseShellExecute = true,
+                        CreateNoWindow = true
+                    });
+                    StatusMessage = $"Открыт SSH терминал ({userHost}), пароль скопирован в буфер!";
+                    return;
+                }
+            }
+
             // 1. Запуск привязанной локальной программы (.exe, .lnk, .rdp, .bat)
             if (entry.IsAppBinding)
             {
@@ -1273,7 +1604,7 @@ public partial class MainViewModel : ObservableObject
                 return;
             }
 
-            // 2. Открытие сайта или URI протокола (https://, steam://, ssh://, rdp://)
+            // 2. Открытие сайта или URI протокола (https://, steam://)
             if (entry.WebsiteLaunchUri != null)
             {
                 await Windows.System.Launcher.LaunchUriAsync(entry.WebsiteLaunchUri);
@@ -1300,20 +1631,28 @@ public partial class MainViewModel : ObservableObject
         if (entry == null) return;
         RecordUserActivity();
 
-        // Если у записи настроен 2FA, сразу копируем текущий 6-значный код 2FA в буфер обмена для мгновенного прохождения 2FA
-        if (entry.HasTotp && !string.IsNullOrWhiteSpace(entry.CurrentTotpCode) && _dispatcherQueue != null)
+        string totpCode = string.Empty;
+        if (entry.HasTotp && !string.IsNullOrWhiteSpace(entry.TotpSecret))
         {
-            int timeout = _vaultService.Settings.ClearClipboardAfterSeconds ? _vaultService.Settings.ClipboardClearTimeout : 0;
-            ClipboardHelper.CopyToClipboard(entry.CurrentTotpCode.Replace(" ", ""), _dispatcherQueue, timeout);
+            // Идея #7: Умное ожидание свежего 2FA-кода, если осталось <= 3 сек.
+            bool waited = _totpService.GetSecondsRemaining() <= 3;
+            string freshCode = await _totpService.GetCodeWithSmartWaitAsync(entry.TotpSecret, 3);
+            totpCode = freshCode;
+            if (_dispatcherQueue != null && !string.IsNullOrEmpty(totpCode))
+            {
+                int timeout = _vaultService.Settings.ClearClipboardAfterSeconds ? _vaultService.Settings.ClipboardClearTimeout : 0;
+                ClipboardHelper.CopyToClipboard(totpCode, _dispatcherQueue, timeout);
+            }
         }
 
         IntPtr hwnd = MainWindow.Instance != null ? WinRT.Interop.WindowNative.GetWindowHandle(MainWindow.Instance) : IntPtr.Zero;
-        bool ok = await AutoTypeHelper.AutoTypeCredentialsAsync(hwnd, entry.UsernameOrEmail, entry.SecretValue, pressEnter: true);
+        // Идея #2: Выполнение кастомного макроса авто-ввода ({USER}{TAB}{PASS}{ENTER} и др.)
+        bool ok = await AutoTypeHelper.ExecuteMacroAsync(hwnd, entry.EffectiveAutoTypeSequence, entry.UsernameOrEmail, entry.SecretValue, totpCode);
         if (ok)
         {
             StatusMessage = entry.HasTotp
-                ? $"Авто-ввод «{entry.Title}» выполнен! Код 2FA ({entry.CurrentTotpCode}) уже в буфере обмена (Ctrl+V)."
-                : $"Быстрая авто-вставка «{entry.Title}» в активное окно выполнена!";
+                ? $"Макрос «{entry.EffectiveAutoTypeSequence}» выполнен! Свежий 2FA ({totpCode}) в буфере обмена (Ctrl+V)."
+                : $"Авто-ввод «{entry.Title}» ({entry.EffectiveAutoTypeSequence}) выполнен!";
         }
     }
 
@@ -1322,15 +1661,16 @@ public partial class MainViewModel : ObservableObject
     {
         if (entry == null || !entry.HasTotp) return;
         RecordUserActivity();
-        string code = string.IsNullOrWhiteSpace(entry.CurrentTotpCode)
-            ? _totpService.GenerateCode(entry.TotpSecret)
-            : entry.CurrentTotpCode.Replace(" ", "");
 
+        bool waited = _totpService.GetSecondsRemaining() <= 3;
+        string code = await _totpService.GetCodeWithSmartWaitAsync(entry.TotpSecret, 3);
         if (string.IsNullOrEmpty(code)) return;
 
         IntPtr hwnd = MainWindow.Instance != null ? WinRT.Interop.WindowNative.GetWindowHandle(MainWindow.Instance) : IntPtr.Zero;
         await AutoTypeHelper.AutoTypeTextAsync(hwnd, code, pressEnter: true);
-        StatusMessage = $"Код 2FA ({code}) автоматически введён в активное окно!";
+        StatusMessage = waited
+            ? $"Дождались нового 30-сек окна и ввели свежий код 2FA ({code})!"
+            : $"Код 2FA ({code}) автоматически введён в активное окно!";
     }
 
     [RelayCommand]
@@ -1347,7 +1687,7 @@ public partial class MainViewModel : ObservableObject
     public void ToggleHealthDashboard()
     {
         RecordUserActivity();
-        IsHealthDashboardVisible = !IsHealthDashboardVisible;
+        IsSecurityAuditDialogVisible = !IsSecurityAuditDialogVisible;
     }
 
     [RelayCommand]
@@ -1370,6 +1710,8 @@ public partial class MainViewModel : ObservableObject
                 cleanTotp = EditTotpSecret.Trim().Replace(" ", "").Replace("-", "").ToUpperInvariant();
         }
 
+        string macroSeq = string.IsNullOrWhiteSpace(EditAutoTypeSequence) ? "{USER}{TAB}{PASS}{ENTER}" : EditAutoTypeSequence.Trim();
+
         if (IsNewEntry)
         {
             var newEntry = new KeyEntry
@@ -1385,6 +1727,9 @@ public partial class MainViewModel : ObservableObject
                 TotpSecret = cleanTotp,
                 Tags = ParseTags(EditTagsText),
                 CustomFields = ParseCustomFields(EditCustomFieldsText),
+                AutoTypeSequence = macroSeq,
+                RecoveryCodes = ParseRecoveryCodes(EditRecoveryCodesText),
+                Attachments = _editAttachmentsList.ToList(),
                 CreatedAt = DateTimeOffset.UtcNow,
                 ModifiedAt = DateTimeOffset.UtcNow
             };
@@ -1423,6 +1768,9 @@ public partial class MainViewModel : ObservableObject
             SelectedEntry.TotpSecret = cleanTotp;
             SelectedEntry.Tags = ParseTags(EditTagsText);
             SelectedEntry.CustomFields = ParseCustomFields(EditCustomFieldsText);
+            SelectedEntry.AutoTypeSequence = macroSeq;
+            SelectedEntry.RecoveryCodes = ParseRecoveryCodes(EditRecoveryCodesText);
+            SelectedEntry.Attachments = _editAttachmentsList.ToList();
             if (SelectedEntry.HasTotp && !string.IsNullOrWhiteSpace(SelectedEntry.TotpSecret))
             {
                 SelectedEntry.CurrentTotpCode = _totpService.GenerateCode(SelectedEntry.TotpSecret);
@@ -1444,6 +1792,25 @@ public partial class MainViewModel : ObservableObject
         IsEditDialogVisible = false;
         await _vaultService.SaveVaultAsync();
         RefreshFilteredList();
+    }
+
+    private static List<RecoveryCodeItem> ParseRecoveryCodes(string? raw)
+    {
+        var list = new List<RecoveryCodeItem>();
+        if (string.IsNullOrWhiteSpace(raw)) return list;
+        var lines = raw.Split(new[] { "\r\n", "\n", ",", ";" }, StringSplitOptions.RemoveEmptyEntries);
+        foreach (var l in lines)
+        {
+            string trimmed = l.Trim();
+            if (string.IsNullOrEmpty(trimmed)) continue;
+            bool used = trimmed.EndsWith("[USED]", StringComparison.OrdinalIgnoreCase);
+            string code = used ? trimmed[..^6].Trim() : trimmed;
+            if (!string.IsNullOrEmpty(code))
+            {
+                list.Add(new RecoveryCodeItem { Code = code, IsUsed = used });
+            }
+        }
+        return list;
     }
 
     private static List<string> ParseTags(string? raw)
@@ -1479,12 +1846,47 @@ public partial class MainViewModel : ObservableObject
     {
         if (entry == null || _vaultService.CurrentContainer == null) return;
 
-        _lastDeletedEntry = entry;
-        CanUndoDelete = true;
-        _vaultService.CurrentContainer.Entries.Remove(entry);
+        // Идея #15: Мягкое удаление в Корзину (Trash / Recycle Bin) на 30 дней
+        if (!entry.IsDeleted)
+        {
+            entry.IsDeleted = true;
+            entry.DeletedAt = DateTimeOffset.UtcNow;
+            _lastDeletedEntry = entry;
+            CanUndoDelete = true;
+            await _vaultService.SaveVaultAsync();
+            RefreshFilteredList();
+            StatusMessage = $"Запись «{entry.Title}» перемещена в Корзину (Ctrl+Z — вернуть).";
+        }
+        else
+        {
+            // Окончательное удаление из Корзины или восстановление
+            _vaultService.CurrentContainer.Entries.Remove(entry);
+            await _vaultService.SaveVaultAsync();
+            RefreshFilteredList();
+            StatusMessage = $"Запись «{entry.Title}» окончательно удалена из Корзины.";
+        }
+    }
+
+    [RelayCommand]
+    public async Task RestoreFromTrashAsync(KeyEntry? entry)
+    {
+        if (entry == null || _vaultService.CurrentContainer == null) return;
+        entry.IsDeleted = false;
+        entry.DeletedAt = null;
         await _vaultService.SaveVaultAsync();
         RefreshFilteredList();
-        StatusMessage = $"Запись «{entry.Title}» удалена (Ctrl+Z — вернуть).";
+        StatusMessage = $"Запись «{entry.Title}» восстановлена из Корзины!";
+    }
+
+    [RelayCommand]
+    public async Task EmptyTrashAsync()
+    {
+        if (_vaultService.CurrentContainer == null) return;
+        int removed = _vaultService.CurrentContainer.Entries.RemoveAll(e => e.IsDeleted);
+        await _vaultService.SaveVaultAsync();
+        if (ActiveFilterChip == "Trash") ActiveFilterChip = "All";
+        RefreshFilteredList();
+        StatusMessage = $"Корзина очищена (удалено записей: {removed}).";
     }
 
     [RelayCommand]
@@ -1494,7 +1896,10 @@ public partial class MainViewModel : ObservableObject
         var restored = _lastDeletedEntry;
         _lastDeletedEntry = null;
         CanUndoDelete = false;
-        _vaultService.CurrentContainer.Entries.Add(restored);
+        restored.IsDeleted = false;
+        restored.DeletedAt = null;
+        if (!_vaultService.CurrentContainer.Entries.Contains(restored))
+            _vaultService.CurrentContainer.Entries.Add(restored);
         await _vaultService.SaveVaultAsync();
         RefreshFilteredList();
         StatusMessage = $"Запись «{restored.Title}» восстановлена!";
@@ -1546,6 +1951,390 @@ public partial class MainViewModel : ObservableObject
         StatusMessage = $"Полная сводка «{entry.Title}» скопирована в буфер!";
     }
 
+    // Идея #13: Быстрое копирование CVV, Срока и PIN банковской карты в 1 клик
+    [RelayCommand]
+    public void CopyCardCvv(KeyEntry? entry)
+    {
+        if (entry == null || _dispatcherQueue == null) return;
+        string val = !string.IsNullOrWhiteSpace(entry.CardCvvValue) ? entry.CardCvvValue : entry.SecretValue;
+        if (string.IsNullOrWhiteSpace(val)) return;
+        int timeout = _vaultService.Settings.ClearClipboardAfterSeconds ? _vaultService.Settings.ClipboardClearTimeout : 0;
+        ClipboardHelper.CopyToClipboard(val, _dispatcherQueue, timeout);
+        StatusMessage = $"CVV/CVC карты «{entry.Title}» скопирован в буфер!";
+    }
+
+    [RelayCommand]
+    public void CopyCardExpiry(KeyEntry? entry)
+    {
+        if (entry == null || _dispatcherQueue == null) return;
+        string val = entry.CardExpiryValue;
+        if (string.IsNullOrWhiteSpace(val) && entry.ExpirationDate.HasValue)
+            val = entry.ExpirationDate.Value.ToString("MM/yy");
+        if (string.IsNullOrWhiteSpace(val)) return;
+        ClipboardHelper.CopyToClipboard(val, _dispatcherQueue, 60);
+        StatusMessage = $"Срок действия карты «{val}» скопирован в буфер!";
+    }
+
+    [RelayCommand]
+    public void CopyCardPin(KeyEntry? entry)
+    {
+        if (entry == null || _dispatcherQueue == null) return;
+        string val = !string.IsNullOrWhiteSpace(entry.CardPinValue) ? entry.CardPinValue : entry.SecretValue;
+        if (string.IsNullOrWhiteSpace(val)) return;
+        int timeout = _vaultService.Settings.ClearClipboardAfterSeconds ? _vaultService.Settings.ClipboardClearTimeout : 0;
+        ClipboardHelper.CopyToClipboard(val, _dispatcherQueue, timeout);
+        StatusMessage = $"PIN-код карты «{entry.Title}» скопирован в буфер!";
+    }
+
+    // Идея #14: Подключение к Wi-Fi в 1 клик и отображение QR-кода Wi-Fi / 2FA
+    [RelayCommand]
+    public void ConnectWifiCard(KeyEntry? entry)
+    {
+        if (entry == null) return;
+        string ssid = entry.WifiSsidValue;
+        if (!string.IsNullOrWhiteSpace( entry.SecretValue) && _dispatcherQueue != null)
+        {
+            int timeout = _vaultService.Settings.ClearClipboardAfterSeconds ? _vaultService.Settings.ClipboardClearTimeout : 0;
+            ClipboardHelper.CopyToClipboard(entry.SecretValue, _dispatcherQueue, timeout);
+        }
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "netsh",
+                Arguments = $"wlan connect name=\"{ssid}\"",
+                UseShellExecute = false,
+                CreateNoWindow = true
+            });
+            StatusMessage = $"Запрос подключения к Wi-Fi «{ssid}» отправлен (ключ сети скопирован в буфер)!";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Ключ Wi-Fi скопирован: {ex.Message}";
+        }
+    }
+
+    // Идея #6: Генерация обратного QR-кода (2FA otpauth:// и Wi-Fi WIFI:)
+    [RelayCommand]
+    public void ShowEntryQrMatrix(KeyEntry? entry)
+    {
+        if (entry == null) return;
+        string payload;
+        string subtitle;
+        if (entry.Category == KeyCategory.Wifi)
+        {
+            payload = entry.GetWifiQrPayload();
+            subtitle = $"Wi-Fi сеть: {entry.WifiSsidValue} ({payload})";
+        }
+        else if (entry.HasTotp && !string.IsNullOrWhiteSpace(entry.TotpSecret))
+        {
+            string issuer = Uri.EscapeDataString(string.IsNullOrWhiteSpace(entry.Title) ? "STORM" : entry.Title);
+            string account = Uri.EscapeDataString(string.IsNullOrWhiteSpace(entry.UsernameOrEmail) ? "user" : entry.UsernameOrEmail);
+            payload = $"otpauth://totp/{issuer}:{account}?secret={entry.TotpSecret}&issuer={issuer}";
+            subtitle = $"2FA TOTP: {entry.Title} ({entry.UsernameOrEmail})";
+        }
+        else
+        {
+            payload = entry.SecretValue;
+            subtitle = $"Ключ / Секрет: {entry.Title}";
+        }
+
+        string art = QrCodeMatrixHelper.GenerateUnicodeQrMatrix(payload);
+        QrMatrixDialogTitle = $"QR-код: {entry.Title}";
+        QrMatrixDialogSubtitle = subtitle;
+        QrMatrixDialogArt = art;
+        QrMatrixTitle = QrMatrixDialogTitle;
+        QrMatrixSubtitle = subtitle;
+        QrMatrixArt = art;
+        QrMatrixRawPayload = payload;
+        IsQrMatrixDialogVisible = true;
+    }
+
+    [RelayCommand]
+    public void ShowEditTotpQrMatrix()
+    {
+        if (string.IsNullOrWhiteSpace(EditTotpSecret)) return;
+        string issuer = Uri.EscapeDataString(string.IsNullOrWhiteSpace(EditTitle) ? "STORM" : EditTitle);
+        string account = Uri.EscapeDataString(string.IsNullOrWhiteSpace(EditUsername) ? "user" : EditUsername);
+        string payload = $"otpauth://totp/{issuer}:{account}?secret={EditTotpSecret.Trim()}&issuer={issuer}";
+        string art = QrCodeMatrixHelper.GenerateUnicodeQrMatrix(payload);
+        QrMatrixDialogTitle = $"QR-код 2FA: {EditTitle}";
+        QrMatrixDialogSubtitle = payload;
+        QrMatrixDialogArt = art;
+        QrMatrixTitle = QrMatrixDialogTitle;
+        QrMatrixSubtitle = payload;
+        QrMatrixArt = art;
+        QrMatrixRawPayload = payload;
+        IsQrMatrixDialogVisible = true;
+    }
+
+    [RelayCommand]
+    public void ShowEditTotpQr() => ShowEditTotpQrMatrix();
+
+    [RelayCommand]
+    public void CopyQrPayload()
+    {
+        if (string.IsNullOrWhiteSpace(QrMatrixRawPayload) || _dispatcherQueue == null) return;
+        int timeout = _vaultService.Settings.ClearClipboardAfterSeconds ? _vaultService.Settings.ClipboardClearTimeout : 0;
+        ClipboardHelper.CopyToClipboard(QrMatrixRawPayload, _dispatcherQueue, timeout);
+        StatusMessage = "Данные QR-кода скопированы в буфер обмена!";
+    }
+
+    [RelayCommand]
+    public void GenerateRecoveryCodes()
+    {
+        var codes = new List<string>();
+        for (int i = 0; i < 8; i++)
+        {
+            string p1 = PasswordGenerator.Generate(4, true, false, true, false, true);
+            string p2 = PasswordGenerator.Generate(4, true, false, true, false, true);
+            codes.Add($"{p1}-{p2}");
+        }
+        EditRecoveryCodesText = string.Join(Environment.NewLine, codes);
+        StatusMessage = "Сгенерировано 8 одноразовых резервных кодов 2FA.";
+    }
+
+    [RelayCommand]
+    public Task FixAllWeakAndDuplicatePasswordsAsync() => AutoStrengthenWeakPasswordsAsync();
+
+    // Идея #5: Умный поиск и извлечение 2FA из буфера обмена / текста
+    [RelayCommand]
+    public async Task Scan2FaFromClipboardAsync()
+    {
+        try
+        {
+            var dataPackageView = Windows.ApplicationModel.DataTransfer.Clipboard.GetContent();
+            if (dataPackageView.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Text))
+            {
+                string text = await dataPackageView.GetTextAsync();
+                if (_totpService.TryExtractFromArbitraryText(text, out string secret, out string? issuer, out string? account))
+                {
+                    EditTotpSecret = secret;
+                    if (string.IsNullOrWhiteSpace(EditTitle) && !string.IsNullOrWhiteSpace(issuer))
+                        EditTitle = issuer;
+                    if (string.IsNullOrWhiteSpace(EditUsername) && !string.IsNullOrWhiteSpace(account))
+                        EditUsername = account;
+                    UpdateEditDialogTotpPreview();
+                    StatusMessage = "Секретный ключ 2FA успешно извлечён и активирован!";
+                    return;
+                }
+            }
+            StatusMessage = "В буфере обмена не найдено ссылки otpauth:// или Base32 ключа 2FA.";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Ошибка сканирования 2FA: {ex.Message}";
+        }
+    }
+
+    // Идея #8: Копирование следующего неиспользованного резервного кода 2FA
+    [RelayCommand]
+    public async Task CopyNextRecoveryCodeAsync(KeyEntry? entry)
+    {
+        var target = entry ?? SelectedEntry;
+        if (target == null || _dispatcherQueue == null) return;
+        string? nextCode = target.ConsumeNextRecoveryCode();
+        if (string.IsNullOrEmpty(nextCode))
+        {
+            StatusMessage = "Все одноразовые резервные коды 2FA уже использованы или список пуст.";
+            return;
+        }
+        int timeout = _vaultService.Settings.ClearClipboardAfterSeconds ? _vaultService.Settings.ClipboardClearTimeout : 0;
+        ClipboardHelper.CopyToClipboard(nextCode, _dispatcherQueue, timeout);
+        await _vaultService.SaveVaultAsync();
+        RefreshFilteredList();
+        StatusMessage = $"Резервный код 2FA «{nextCode}» скопирован и отмечен как использованный (осталось: {target.ActiveRecoveryCodesCount})!";
+    }
+
+    // Идея #12: Генерация API-токенов, UUID v4, Hex-256, Base64/JWT, SSH
+    [RelayCommand]
+    public void GenerateApiTokenPreset(string format)
+    {
+        EditSecret = PasswordGenerator.GenerateApiToken(format);
+        if (format.Equals("SSH", StringComparison.OrdinalIgnoreCase))
+            EditCategory = KeyCategory.Certificate;
+        else if (EditCategory == KeyCategory.Account)
+            EditCategory = KeyCategory.ApiKey;
+    }
+
+    [RelayCommand]
+    public void SetAutoTypeMacroPreset(string sequence)
+    {
+        if (!string.IsNullOrWhiteSpace(sequence))
+        {
+            EditAutoTypeSequence = sequence;
+        }
+    }
+
+    // Идея #16 и #20: Пакетное усиление всех слабых паролей в 1 клик (с сохранением старых в историю)
+    [RelayCommand]
+    public async Task AutoStrengthenWeakPasswordsAsync()
+    {
+        if (_vaultService.CurrentContainer == null) return;
+        var weakEntries = _vaultService.CurrentContainer.Entries
+            .Where(e => !e.IsDeleted && !string.IsNullOrEmpty(e.SecretValue) && PasswordGenerator.EvaluateStrength(e.SecretValue).Score <= 2)
+            .ToList();
+
+        if (weakEntries.Count == 0)
+        {
+            StatusMessage = "В хранилище нет слабых паролей — все записи имеют высокую криптостойкость!";
+            return;
+        }
+
+        foreach (var entry in weakEntries)
+        {
+            entry.PasswordHistory ??= new();
+            entry.PasswordHistory.Insert(0, new PasswordHistoryItem
+            {
+                Password = entry.SecretValue,
+                ChangedAt = DateTimeOffset.Now
+            });
+            if (entry.PasswordHistory.Count > 5)
+                entry.PasswordHistory.RemoveAt(entry.PasswordHistory.Count - 1);
+
+            entry.SecretValue = PasswordGenerator.Generate(20, true, true, true, true, true);
+            entry.ModifiedAt = DateTimeOffset.UtcNow;
+        }
+
+        await _vaultService.SaveVaultAsync();
+        RefreshFilteredList();
+        StatusMessage = $"⚡ Автоматически усилено слабых паролей: {weakEntries.Count} шт. (предыдущие пароли сохранены в историю карточек)!";
+    }
+
+    // Идея #21: Тревожная кнопка экстренной блокировки (Emergency Panic Lock)
+    [RelayCommand]
+    public async Task TriggerEmergencyPanicLockAsync()
+    {
+        try
+        {
+            if (_dispatcherQueue != null)
+            {
+                var pkg = new Windows.ApplicationModel.DataTransfer.DataPackage();
+                pkg.SetText(string.Empty);
+                Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(pkg);
+                Windows.ApplicationModel.DataTransfer.Clipboard.Flush();
+            }
+        }
+        catch { }
+
+        IsEditDialogVisible = false;
+        IsSettingsDialogVisible = false;
+        IsSecurityAuditDialogVisible = false;
+        IsQrMatrixDialogVisible = false;
+        await LockVaultAsync();
+        MainWindow.Instance?.AppWindow?.Hide();
+    }
+
+    // Идея #22: Компактный плавающий режим «Поверх всех окон» (Always-on-Top Mini Mode)
+    [RelayCommand]
+    public async Task ToggleMiniModeAsync()
+    {
+        IsMiniModeActive = !IsMiniModeActive;
+        IsCompactView = IsMiniModeActive;
+        MainWindow.Instance?.SetMiniMode(IsMiniModeActive);
+        _vaultService.Settings.AlwaysOnTopMiniMode = IsMiniModeActive;
+        await _vaultService.SaveSettingsAsync();
+        StatusMessage = IsMiniModeActive
+            ? "Включён компактный плавающий режим «Поверх всех окон» (Always-on-Top Mini Mode)."
+            : "Возвращён полноразмерный режим окна.";
+    }
+
+    // Идея #23: Восстановление из локальных .bak1..3 снимков в 1 клик
+    [RelayCommand]
+    public async Task RestoreBackupSlotAsync(string slotStr)
+    {
+        if (!int.TryParse(slotStr, out int slot)) return;
+        bool ok = await _vaultService.RestoreBackupSlotAsync(slot);
+        if (ok)
+        {
+            BackupSlotsSummaryText = FormatBackupSlots(_vaultService.GetBackupSlotsSummary());
+        DuressStatusText = string.IsNullOrEmpty(_vaultService.Settings.DuressPasswordHash) ? "Не задан" : "Активен (защищён)";
+            await LockVaultAsync();
+            StatusMessage = $"Контейнер успешно восстановлен из резервного слота .bak{slot}! Введите мастер-пароль.";
+        }
+        else
+        {
+            StatusMessage = $"Резервный слот .bak{slot} ещё не создан.";
+        }
+    }
+
+    // Идея #17: Настройка ложного пароля под принуждением (Duress Password)
+    [RelayCommand]
+    public async Task SaveDuressPasswordAsync()
+    {
+        if (string.IsNullOrWhiteSpace(SettingsDuressPasswordInput))
+        {
+            _vaultService.Settings.DuressPasswordHash = string.Empty;
+            await _vaultService.SaveSettingsAsync();
+            StatusMessage = "Ложный пароль под принуждением (Duress Password) отключён.";
+            return;
+        }
+        if (SettingsDuressPasswordInput.Length < 6)
+        {
+            StatusMessage = "Ложный пароль должен содержать минимум 6 символов.";
+            return;
+        }
+        _vaultService.Settings.DuressPasswordHash = _cryptoService.ComputePasswordVerifierHash(SettingsDuressPasswordInput);
+        SettingsDuressPasswordInput = string.Empty;
+        OnPropertyChanged(nameof(DuressPasswordInput));
+        DuressStatusText = "Активен (защищён)";
+        await _vaultService.SaveSettingsAsync();
+        StatusMessage = "Ложный пароль под принуждением (Duress Password) активирован!";
+    }
+
+    [RelayCommand]
+    public async Task ClearDuressPasswordAsync()
+    {
+        SettingsDuressPasswordInput = string.Empty;
+        OnPropertyChanged(nameof(DuressPasswordInput));
+        _vaultService.Settings.DuressPasswordHash = string.Empty;
+        DuressStatusText = "Не задан";
+        await _vaultService.SaveSettingsAsync();
+        StatusMessage = "Ложный пароль под принуждением (Duress Password) сброшен.";
+    }
+
+    // Идея #18: Привязка и сброс аппаратного ключа-файла (.stormkey)
+    [RelayCommand]
+    public async Task ClearKeyfileAsync()
+    {
+        SettingsKeyfilePath = string.Empty;
+        _vaultService.Settings.KeyfilePath = string.Empty;
+        if (!IsVaultLocked && !string.IsNullOrEmpty(_activeSessionMasterPassword))
+        {
+            await _vaultService.ChangeMasterPasswordAsync(_activeSessionMasterPassword, _activeSessionMasterPassword);
+        }
+        await _vaultService.SaveSettingsAsync();
+        StatusMessage = "Привязка ключа-файла (.stormkey) отключена.";
+    }
+
+    public async Task ApplyKeyfileAsync(string keyfilePath, bool createNew)
+    {
+        try
+        {
+            if (createNew)
+            {
+                await _cryptoService.GenerateKeyfileAsync(keyfilePath);
+            }
+            SettingsKeyfilePath = keyfilePath;
+            _vaultService.Settings.KeyfilePath = keyfilePath;
+            await _vaultService.SaveSettingsAsync();
+
+            if (!IsVaultLocked && !string.IsNullOrEmpty(_activeSessionMasterPassword))
+            {
+                await _vaultService.ChangeMasterPasswordAsync(_activeSessionMasterPassword, _activeSessionMasterPassword);
+                if (SettingsWindowsHelloEnabled)
+                {
+                    await _windowsHelloService.SaveEncryptedCredentialsSilentAsync(_activeSessionMasterPassword);
+                }
+            }
+            StatusMessage = $"Двухфакторный ключ-файл «{Path.GetFileName(keyfilePath)}» подключён!";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Ошибка подключения .stormkey: {ex.Message}";
+        }
+    }
+
     [RelayCommand]
     public void GeneratePassphrase()
     {
@@ -1595,9 +2384,11 @@ public partial class MainViewModel : ObservableObject
         try
         {
             await _vaultService.ChangeMasterPasswordAsync(OldMasterPasswordInput, NewMasterPasswordInput);
+            _activeSessionMasterPassword = NewMasterPasswordInput;
             if (SettingsWindowsHelloEnabled)
             {
-                await _windowsHelloService.EnrollAsync(NewMasterPasswordInput);
+                await _windowsHelloService.SaveEncryptedCredentialsSilentAsync(NewMasterPasswordInput);
+                IsWindowsHelloEnrolled = _windowsHelloService.IsEnrolled();
             }
             OldMasterPasswordInput = string.Empty;
             NewMasterPasswordInput = string.Empty;
@@ -1615,6 +2406,8 @@ public partial class MainViewModel : ObservableObject
         try
         {
             string snap = await _vaultService.CreateBackupSnapshotAsync();
+            BackupSlotsSummaryText = FormatBackupSlots(_vaultService.GetBackupSlotsSummary());
+        DuressStatusText = string.IsNullOrEmpty(_vaultService.Settings.DuressPasswordHash) ? "Не задан" : "Активен (защищён)";
             StatusMessage = $"Резервная копия создана: {Path.GetFileName(snap)}";
         }
         catch (Exception ex)
@@ -1665,12 +2458,17 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
-    public void CopyTotpCode(KeyEntry? entry)
+    public async Task CopyTotpCode(KeyEntry? entry)
     {
-        if (entry == null || !entry.HasTotp || string.IsNullOrEmpty(entry.CurrentTotpCode) || _dispatcherQueue == null) return;
+        if (entry == null || !entry.HasTotp || _dispatcherQueue == null) return;
+        bool waited = _totpService.GetSecondsRemaining() <= 3;
+        string code = await _totpService.GetCodeWithSmartWaitAsync(entry.TotpSecret, 3);
+        if (string.IsNullOrEmpty(code)) return;
         int timeout = _vaultService.Settings.ClearClipboardAfterSeconds ? _vaultService.Settings.ClipboardClearTimeout : 0;
-        ClipboardHelper.CopyToClipboard(entry.CurrentTotpCode.Replace(" ", ""), _dispatcherQueue, timeout);
-        StatusMessage = $"Код 2FA «{entry.CurrentTotpCode}» скопирован в буфер!";
+        ClipboardHelper.CopyToClipboard(code, _dispatcherQueue, timeout);
+        StatusMessage = waited
+            ? $"Дождались нового 30-сек окна и скопировали свежий код 2FA «{code}»!"
+            : $"Код 2FA «{entry.CurrentTotpCode}» скопирован в буфер!";
     }
 
     [RelayCommand]
@@ -1727,7 +2525,7 @@ public partial class MainViewModel : ObservableObject
                 });
             });
 
-            var summary = await _pwnedPasswordsService.AuditVaultAsync(_vaultService.CurrentContainer.Entries, prog);
+            var summary = await _pwnedPasswordsService.AuditVaultAsync(_vaultService.CurrentContainer.Entries.Where(e => !e.IsDeleted), prog);
             BreachedPasswordsCount = summary.BreachedEntriesCount;
             await _vaultService.SaveVaultAsync();
             RefreshFilteredList();
@@ -1819,6 +2617,10 @@ public partial class MainViewModel : ObservableObject
         SettingsCloudFolder = _vaultService.Settings.CloudSyncFolderPath;
         SettingsCloudEnabled = _vaultService.Settings.CloudSyncEnabled;
         SettingsAutoLockMinutes = _vaultService.Settings.AutoLockMinutes;
+        SettingsScreenCaptureProtection = _vaultService.Settings.ScreenCaptureProtection;
+        SettingsKeyfilePath = _vaultService.Settings.KeyfilePath ?? string.Empty;
+        BackupSlotsSummaryText = FormatBackupSlots(_vaultService.GetBackupSlotsSummary());
+        DuressStatusText = string.IsNullOrEmpty(_vaultService.Settings.DuressPasswordHash) ? "Не задан" : "Активен (защищён)";
         var savedTheme = _vaultService.Settings.Theme ?? "MIDNIGHT";
         SelectedTheme = AvailableThemes.FirstOrDefault(t => t.StartsWith(savedTheme, StringComparison.OrdinalIgnoreCase)) ?? AvailableThemes[0];
 
@@ -1851,6 +2653,9 @@ public partial class MainViewModel : ObservableObject
         _vaultService.Settings.Accent = SelectedAccent;
         _vaultService.Settings.Language = SelectedLanguage;
         _vaultService.Settings.FontFamily = SelectedFont;
+        _vaultService.Settings.ScreenCaptureProtection = SettingsScreenCaptureProtection;
+        MainWindow.Instance?.SetScreenCaptureProtection(SettingsScreenCaptureProtection);
+
         if (SettingsWindowsHelloEnabled != _vaultService.Settings.WindowsHelloEnabled)
         {
             _vaultService.Settings.WindowsHelloEnabled = SettingsWindowsHelloEnabled;
@@ -1859,7 +2664,19 @@ public partial class MainViewModel : ObservableObject
                 await _windowsHelloService.DisableAsync();
                 IsWindowsHelloEnrolled = false;
             }
+            else if (!string.IsNullOrEmpty(_activeSessionMasterPassword))
+            {
+                // Сразу тихо сохраняем текущий мастер-пароль для Windows Hello при включении переключателя в настройках!
+                await _windowsHelloService.SaveEncryptedCredentialsSilentAsync(_activeSessionMasterPassword);
+                IsWindowsHelloEnrolled = _windowsHelloService.IsEnrolled();
+            }
         }
+        else if (SettingsWindowsHelloEnabled && !IsWindowsHelloEnrolled && !string.IsNullOrEmpty(_activeSessionMasterPassword))
+        {
+            await _windowsHelloService.SaveEncryptedCredentialsSilentAsync(_activeSessionMasterPassword);
+            IsWindowsHelloEnrolled = _windowsHelloService.IsEnrolled();
+        }
+
         await _vaultService.SaveSettingsAsync();
         UpdateCloudStatus();
         IsSettingsDialogVisible = false;
@@ -2084,7 +2901,7 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     public void OpenImportDialog()
     {
-        ImportSummaryText = "Выберите CSV, JSON, .env или .txt файл экспорта из браузера (Chrome, Edge, Firefox) или менеджера паролей.";
+        ImportSummaryText = "Выберите CSV, JSON, XML (KeePass 2), .stormbackup, .env или .txt файл экспорта.";
         IsImportDialogVisible = true;
     }
 
@@ -2100,6 +2917,10 @@ public partial class MainViewModel : ObservableObject
             ImportResult res;
             if (filePath.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
                 res = await _importExportService.ImportFromJsonAsync(filePath);
+            else if (filePath.EndsWith(".xml", StringComparison.OrdinalIgnoreCase))
+                res = await _importExportService.ImportFromKeePassXmlAsync(filePath);
+            else if (filePath.EndsWith(".stormbackup", StringComparison.OrdinalIgnoreCase))
+                res = await _importExportService.ImportEncryptedBackupAsync(filePath, string.IsNullOrEmpty(_activeSessionMasterPassword) ? "STORM" : _activeSessionMasterPassword);
             else
                 res = await _importExportService.ImportFromCsvAsync(filePath);
 

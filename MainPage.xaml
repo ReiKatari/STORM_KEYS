@@ -81,7 +81,7 @@
                         </StackPanel>
                     </StackPanel>
 
-                    <!-- Строка поиска -->
+                    <!-- Строка поиска (Ctrl+Shift+Space / Enter — мгновенный авто-ввод первого результата) -->
                     <AutoSuggestBox
                         x:Name="SearchBox"
                         Grid.Column="1"
@@ -90,13 +90,14 @@
                         VerticalAlignment="Center"
                         PlaceholderText="{x:Bind ViewModel.UiSearchPlaceholder, Mode=OneWay}"
                         QueryIcon="Find"
+                        QuerySubmitted="SearchBox_QuerySubmitted"
                         Text="{x:Bind ViewModel.SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
                     <!-- Кнопки быстрых действий -->
                     <StackPanel
                         Grid.Column="2"
                         Orientation="Horizontal"
-                        Spacing="8">
+                        Spacing="6">
                         <Button
                             Background="{x:Bind ViewModel.CurrentAccentBrush, Mode=OneWay}"
                             Click="AddEntry_Click"
@@ -124,7 +125,7 @@
                             </StackPanel>
                             <Button.Flyout>
                                 <MenuFlyout>
-                                    <MenuFlyoutItem Click="ImportFile_Click" Text="Импорт из файла (CSV / JSON / .env / .txt)">
+                                    <MenuFlyoutItem Click="ImportFile_Click" Text="Импорт из файла (CSV / JSON / KeePass XML / .stormbackup / .env / .txt)">
                                         <MenuFlyoutItem.Icon>
                                             <FontIcon Glyph="&#xE8E5;" />
                                         </MenuFlyoutItem.Icon>
@@ -145,12 +146,23 @@
                             </StackPanel>
                             <Button.Flyout>
                                 <MenuFlyout>
+                                    <MenuFlyoutItem Click="ExportStormBackup_Click" Text="Зашифрованный архив (.stormbackup AES-256)" />
+                                    <MenuFlyoutItem Click="ExportDotEnv_Click" Text="Экспорт ключей в .env файл (DevOps)" />
+                                    <MenuFlyoutSeparator />
                                     <MenuFlyoutItem Click="ExportCsv_Click" Text="Экспорт в CSV" />
                                     <MenuFlyoutItem Click="ExportJson_Click" Text="Экспорт в JSON" />
                                     <MenuFlyoutSeparator />
                                     <MenuFlyoutItem Click="ExportRecoveryKit_Click" Text="Аварийный лист восстановления (.txt)" />
                                 </MenuFlyout>
                             </Button.Flyout>
+                        </Button>
+
+                        <Button Command="{x:Bind ViewModel.ToggleHealthDashboardCommand}" ToolTipService.ToolTip="Интерактивный Центр аудита безопасности и авто-усиления паролей">
+                            <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE9D9;" Foreground="#10B981" />
+                        </Button>
+
+                        <Button Command="{x:Bind ViewModel.ToggleMiniModeCommand}" ToolTipService.ToolTip="Компактный плавающий режим «Поверх всех окон» (Always-on-Top Mini Mode)">
+                            <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xEE49;" />
                         </Button>
 
                         <Button Click="ToggleDensity_Click" ToolTipService.ToolTip="Переключить компактный / комфортный вид карточек">
@@ -168,12 +180,52 @@
                         <Button Command="{x:Bind ViewModel.LockVaultCommand}" ToolTipService.ToolTip="{x:Bind ViewModel.UiTooltipLock, Mode=OneWay}">
                             <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE72E;" />
                         </Button>
+
+                        <Button Command="{x:Bind ViewModel.TriggerEmergencyPanicLockCommand}" ToolTipService.ToolTip="Тревожная кнопка экстренной блокировки и очистки буфера (Ctrl+Shift+L)">
+                            <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE7BA;" Foreground="#D13438" />
+                        </Button>
                     </StackPanel>
                 </Grid>
             </Border>
 
             <!-- 2. Сводные метрические карточки и индекс безопасности -->
             <StackPanel Grid.Row="1" Margin="24,12,24,4" Spacing="8">
+                <!-- Идея #1: Баннер мгновенного авто-ввода для распознанного активного окна -->
+                <Border
+                    Padding="12,6"
+                    Background="#2210B981"
+                    BorderBrush="#10B981"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Visibility="{x:Bind BoolToVis(ViewModel.HasMatchedWindowEntry), Mode=OneWay}">
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <FontIcon Grid.Column="0" FontFamily="Segoe Fluent Icons" Glyph="&#xE945;" Foreground="#10B981" FontSize="14" />
+                        <TextBlock
+                            Grid.Column="1"
+                            VerticalAlignment="Center"
+                            FontSize="12"
+                            FontWeight="SemiBold"
+                            Text="{x:Bind ViewModel.MatchedWindowBannerText, Mode=OneWay}"
+                            TextWrapping="Wrap" />
+                        <Button
+                            Grid.Column="2"
+                            Padding="10,4"
+                            Background="#10B981"
+                            Command="{x:Bind ViewModel.AutoTypeMatchedWindowCommand}"
+                            Foreground="#FFFFFF">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE945;" FontSize="11" />
+                                <TextBlock FontSize="11.5" FontWeight="Bold" Text="Авто-ввод в окно" />
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+                </Border>
+
                 <Grid ColumnSpacing="12">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
@@ -311,7 +363,7 @@
                     </Border>
                 </Grid>
 
-                <!-- ДИНАМИЧЕСКИЙ ГРАФИК ЗДОРОВЬЯ ХРАНИЛИЩА (LIVE DYNAMIC HEALTH GAUGE) -->
+                <!-- ДИНАМИЧЕСКИЙ ГРАФИК ЗДОРОВЬЯ ХРАНИЛИЩА (LIVE DYNAMIC HEALTH GAUGE + ЦЕНТР АУДИТА) -->
                 <Border
                     Padding="16,8"
                     Background="{ThemeResource LayerOnMicaBaseAltFillColorDefaultBrush}"
@@ -322,6 +374,7 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
 
@@ -354,6 +407,14 @@
                                 <TextBlock FontSize="11" Text="Истёкшие" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             </StackPanel>
                         </StackPanel>
+
+                        <Button
+                            Grid.Column="3"
+                            Padding="8,3"
+                            Command="{x:Bind ViewModel.ToggleHealthDashboardCommand}"
+                            Content="Центр аудита"
+                            FontSize="11"
+                            FontWeight="SemiBold" />
                     </Grid>
                 </Border>
             </StackPanel>
@@ -362,6 +423,7 @@
             <StackPanel Grid.Row="2" Margin="24,4,24,4" Spacing="8">
                 <Grid ColumnSpacing="10">
                     <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
@@ -396,9 +458,19 @@
                         </StackPanel>
                     </Button>
 
+                    <Button
+                        Grid.Column="4"
+                        Command="{x:Bind ViewModel.AutoStrengthenWeakPasswordsCommand}"
+                        ToolTipService.ToolTip="Пакетное усиление всех слабых паролей в 1 клик (старые сохранятся в историю)">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE945;" FontSize="12" Foreground="#10B981" />
+                            <TextBlock Text="Усилить слабые" FontSize="12" FontWeight="SemiBold" />
+                        </StackPanel>
+                    </Button>
+
                     <!-- Информационное сообщение -->
                     <InfoBar
-                        Grid.Column="4"
+                        Grid.Column="5"
                         IsClosable="True"
                         IsOpen="{x:Bind HasText(ViewModel.StatusMessage), Mode=OneWay}"
                         Message="{x:Bind ViewModel.StatusMessage, Mode=OneWay}"
@@ -507,6 +579,24 @@
                                 </Border>
                             </StackPanel>
                         </Button>
+                        <Button Padding="8,4" Click="FilterChip_Click" Tag="Old" CornerRadius="14">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <FontIcon Glyph="&#xE81C;" FontFamily="Segoe Fluent Icons" FontSize="11" />
+                                <TextBlock Text="Старые (&gt;1г)" FontWeight="SemiBold" FontSize="11.5" />
+                                <Border Background="{ThemeResource LayerOnMicaBaseAltFillColorDefaultBrush}" CornerRadius="10" Padding="5,1">
+                                    <TextBlock Text="{x:Bind ViewModel.OldPasswordsCount, Mode=OneWay}" FontSize="10" FontWeight="Bold" />
+                                </Border>
+                            </StackPanel>
+                        </Button>
+                        <Button Padding="8,4" Click="FilterChip_Click" Tag="Trash" CornerRadius="14">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <FontIcon Glyph="&#xE74D;" FontFamily="Segoe Fluent Icons" FontSize="11" Foreground="#D13438" />
+                                <TextBlock Text="Корзина" FontWeight="SemiBold" FontSize="11.5" />
+                                <Border Background="#25D13438" CornerRadius="10" Padding="5,1">
+                                    <TextBlock Text="{x:Bind ViewModel.TrashCount, Mode=OneWay}" FontSize="10" FontWeight="Bold" Foreground="#D13438" />
+                                </Border>
+                            </StackPanel>
+                        </Button>
                     </StackPanel>
                 </ScrollViewer>
             </StackPanel>
@@ -578,7 +668,7 @@
                                 Click="ImportFile_Click">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <FontIcon FontFamily="Segoe Fluent Icons" Glyph="&#xE8E5;" />
-                                    <TextBlock FontWeight="SemiBold" Text="Импорт из файла (CSV / JSON / .env)" />
+                                    <TextBlock FontWeight="SemiBold" Text="Импорт из файла (CSV / JSON / XML / .env)" />
                                 </StackPanel>
                             </Button>
                         </StackPanel>
@@ -646,7 +736,7 @@
                 </Border>
             </ScrollViewer>
 
-            <!-- 4Б. Список карточек ключей и паролей (с правым отступом 18px от вертикальной полосы прокрутки) -->
+            <!-- 4Б. Список карточек ключей и паролей (с правым отступом 18px от вертикальной полосы прокрутки и Drag & Drop) -->
             <ListView
                 Grid.Row="3"
                 Padding="24,0,12,24"
@@ -717,10 +807,14 @@
                                         TextWrapping="Wrap" />
                                 </StackPanel>
 
-                                <!-- Логин / Email с кнопкой быстрого копирования (без жёсткого MaxWidth=160) -->
+                                <!-- Логин / Email с кнопкой быстрого копирования и Drag & Drop -->
                                 <Grid
                                     Grid.Column="2"
                                     VerticalAlignment="Center"
+                                    CanDrag="True"
+                                    DragStarting="CardUsername_DragStarting"
+                                    Tag="{Binding}"
+                                    ToolTipService.ToolTip="Перетащите мышью (Drag &amp; Drop) логин в браузер или нажмите копировать"
                                     ColumnSpacing="8">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
@@ -746,12 +840,12 @@
                                     </Button>
                                 </Grid>
 
-                                <!-- Секрет (Пароль/Ключ), 2FA TOTP и Срок действия -->
+                                <!-- Секрет (Пароль/Ключ), 2FA TOTP, Банковская карта, Wi-Fi и Срок действия -->
                                 <StackPanel
                                     Grid.Column="3"
                                     VerticalAlignment="Center"
                                     Spacing="4">
-                                    <Grid ColumnSpacing="6">
+                                    <Grid ColumnSpacing="6" CanDrag="True" DragStarting="CardSecret_DragStarting" Tag="{Binding}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="Auto" />
@@ -764,6 +858,7 @@
                                             FontSize="13"
                                             FontWeight="Bold"
                                             Text="{Binding DisplayedSecret}"
+                                            ToolTipService.ToolTip="Перетащите мышью (Drag &amp; Drop) секрет/пароль в нужное поле"
                                             TextWrapping="Wrap" />
                                         <Button
                                             Grid.Column="1"
@@ -791,14 +886,18 @@
                                         </Button>
                                     </Grid>
 
-                                    <!-- 2FA / TOTP Код с живым 30-секундным таймером и кнопкой авто-ввода 2FA -->
+                                    <!-- 2FA / TOTP Код с живым 30-секундным таймером, умным ожиданием, авто-вводом и QR-кодом -->
                                     <StackPanel Orientation="Horizontal" Spacing="6" Visibility="{Binding TotpVisibility}">
                                         <Border
+                                            CanDrag="True"
+                                            DragStarting="CardTotp_DragStarting"
+                                            Tag="{Binding}"
                                             Background="{ThemeResource LayerOnMicaBaseAltFillColorDefaultBrush}"
                                             BorderBrush="{ThemeResource AccentFillColorDefaultBrush}"
                                             BorderThickness="1"
                                             CornerRadius="4"
-                                            Padding="6,2">
+                                            Padding="6,2"
+                                            ToolTipService.ToolTip="Перетащите 6-значный 2FA-код в окно браузера">
                                             <StackPanel Orientation="Horizontal" Spacing="6">
                                                 <FontIcon
                                                     Glyph="&#xE8D7;"
@@ -822,7 +921,7 @@
                                             Padding="5,3"
                                             Click="CopyTotp_Click"
                                             Tag="{Binding}"
-                                            ToolTipService.ToolTip="{Binding ElementName=RootPage, Path=ViewModel.UiTotpCopyTooltip}">
+                                            ToolTipService.ToolTip="Скопировать 2FA-код (с умным ожиданием нового окна при остатке &lt;= 3 сек.)">
                                             <FontIcon
                                                 FontFamily="Segoe Fluent Icons"
                                                 FontSize="11"
@@ -839,9 +938,32 @@
                                                 Foreground="{ThemeResource AccentFillColorDefaultBrush}"
                                                 Glyph="&#xE945;" />
                                         </Button>
+                                        <Button
+                                            Padding="5,3"
+                                            Click="ShowTotpQrFromCard_Click"
+                                            Tag="{Binding}"
+                                            ToolTipService.ToolTip="Показать QR-код 2FA для сканирования камерой смартфона">
+                                            <FontIcon
+                                                FontFamily="Segoe Fluent Icons"
+                                                FontSize="11"
+                                                Glyph="&#xED14;" />
+                                        </Button>
                                     </StackPanel>
 
-                                    <!-- Бейджи статуса срока и аудита утечек -->
+                                    <!-- Быстрые кнопки Банковской карты (CVV / Срок / PIN) -->
+                                    <StackPanel Orientation="Horizontal" Spacing="4" Visibility="{Binding IsBankCardVisibility}">
+                                        <Button Padding="6,2" Click="CopyCardCvv_Click" Tag="{Binding}" Content="CVV" FontSize="10" ToolTipService.ToolTip="Скопировать CVV/CVC код карты" />
+                                        <Button Padding="6,2" Click="CopyCardExpiry_Click" Tag="{Binding}" Content="Срок" FontSize="10" ToolTipService.ToolTip="Скопировать срок действия карты (MM/YY)" />
+                                        <Button Padding="6,2" Click="CopyCardPin_Click" Tag="{Binding}" Content="PIN" FontSize="10" ToolTipService.ToolTip="Скопировать PIN-код карты" />
+                                    </StackPanel>
+
+                                    <!-- Быстрые кнопки Wi-Fi (QR-код и Подключение в 1 клик) -->
+                                    <StackPanel Orientation="Horizontal" Spacing="4" Visibility="{Binding IsWifiVisibility}">
+                                        <Button Padding="6,2" Click="ShowWifiQr_Click" Tag="{Binding}" Content="QR Wi-Fi" FontSize="10" ToolTipService.ToolTip="Показать QR-код для подключения телефона к Wi-Fi" />
+                                        <Button Padding="6,2" Click="ConnectWifi_Click" Tag="{Binding}" Content="Подключить ПК" FontSize="10" ToolTipService.ToolTip="Подключить Windows к этой сети Wi-Fi в 1 клик (netsh wlan)" />
+                                    </StackPanel>
+
+                                    <!-- Бейджи статуса срока, аудита утечек, резервных кодов и вложений -->
                                     <StackPanel Orientation="Horizontal" Spacing="6">
                                         <Border
                                             Padding="6,2"
@@ -879,21 +1001,53 @@
                                                 <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="#107C41" Text="Безопасен" />
                                             </StackPanel>
                                         </Border>
+
+                                        <Button
+                                            Padding="5,2"
+                                            Click="CopyRecoveryCode_Click"
+                                            Tag="{Binding}"
+                                            Visibility="{Binding HasRecoveryCodesVisibility}"
+                                            ToolTipService.ToolTip="Скопировать и отметить использованным 1 резервный код восстановления 2FA">
+                                            <TextBlock FontSize="10" FontWeight="SemiBold" Text="{Binding RecoveryCodesBadgeText}" />
+                                        </Button>
+
+                                        <Button
+                                            Padding="5,2"
+                                            Click="ExportAttachment_Click"
+                                            Tag="{Binding}"
+                                            Visibility="{Binding HasAttachmentsVisibility}"
+                                            ToolTipService.ToolTip="Сохранить прикрепленный зашифрованный файл на диск">
+                                            <TextBlock FontSize="10" FontWeight="SemiBold" Text="{Binding AttachmentsBadgeText}" />
+                                        </Button>
                                     </StackPanel>
                                 </StackPanel>
 
-                                <!-- Действия: Авто-вставка, Запуск программы/сайта, Избранное, Дубликат, Сводка, HIBP, Детали, Редактировать, Удалить -->
+                                <!-- Действия: Восстановить из корзины, Авто-вставка, Запуск программы/сайта, Избранное, Дубликат, Сводка, HIBP, Детали, Редактировать, Удалить -->
                                 <StackPanel
                                     Grid.Column="4"
                                     VerticalAlignment="Center"
                                     Orientation="Horizontal"
                                     Spacing="6">
-                                    <!-- Быстрая вставка / Авто-ввод (Логин + Tab + Пароль + 2FA в буфер) -->
+                                    <!-- Восстановить из корзины -->
+                                    <Button
+                                        Padding="8,6"
+                                        Click="RestoreFromTrash_Click"
+                                        Tag="{Binding}"
+                                        Visibility="{Binding IsDeletedVisibility}"
+                                        ToolTipService.ToolTip="Восстановить запись из корзины">
+                                        <FontIcon
+                                            FontFamily="Segoe Fluent Icons"
+                                            FontSize="14"
+                                            Foreground="#10B981"
+                                            Glyph="&#xE777;" />
+                                    </Button>
+
+                                    <!-- Быстрая вставка / Авто-ввод (Макрос {USER}{TAB}{PASS}{ENTER} + 2FA) -->
                                     <Button
                                         Padding="8,6"
                                         Click="QuickAutoType_Click"
                                         Tag="{Binding}"
-                                        ToolTipService.ToolTip="Быстрая вставка (Авто-ввод): ввести Логин + Tab + Пароль в предыдущее окно (и скопировать код 2FA)">
+                                        ToolTipService.ToolTip="Быстрая вставка (Авто-ввод по макросу записи) в предыдущее окно (и скопировать 2FA)">
                                         <FontIcon
                                             FontFamily="Segoe Fluent Icons"
                                             FontSize="14"
@@ -988,7 +1142,7 @@
                                         Padding="8,6"
                                         Click="DeleteEntry_Click"
                                         Tag="{Binding}"
-                                        ToolTipService.ToolTip="{Binding ElementName=RootPage, Path=ViewModel.UiTooltipDelete}">
+                                        ToolTipService.ToolTip="Переместить в корзину (или удалить окончательно из корзины)">
                                         <FontIcon
                                             FontFamily="Segoe Fluent Icons"
                                             FontSize="14"
@@ -1030,11 +1184,11 @@
             </TeachingTip.Content>
         </TeachingTip>
 
-        <!-- ДИАЛОГ ДОБАВЛЕНИЯ / РЕДАКТИРОВАНИЯ (МАКСИМАЛЬНО ПРОКАЧАННЫЙ В 1.0.4) -->
+        <!-- ДИАЛОГ ДОБАВЛЕНИЯ / РЕДАКТИРОВАНИЯ (МАКСИМАЛЬНО ПРОКАЧАННЫЙ В 1.0.5) -->
         <Grid Background="#7F000000" Visibility="{x:Bind BoolToVis(ViewModel.IsEditDialogVisible), Mode=OneWay}">
             <Border
-                Width="780"
-                MaxHeight="780"
+                Width="800"
+                MaxHeight="800"
                 Margin="20"
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center"
@@ -1079,7 +1233,7 @@
                                 <TextBlock
                                     FontSize="11"
                                     Foreground="{x:Bind ViewModel.CurrentTextSecondaryBrush, Mode=OneWay}"
-                                    Text="Все форматы данных • Выбор иконки • Генератор с параметрами • Живой 2FA • Привязка .exe и URL"
+                                    Text="Все форматы • Генератор паролей и API-токенов • Живой 2FA + QR • Макросы Авто-ввода • Вложения"
                                     TextWrapping="Wrap" />
                             </StackPanel>
 
@@ -1208,7 +1362,7 @@
                             </Button>
                         </Grid>
 
-                        <!-- 5. Пароль / Секретный ключ + Настраиваемый генератор паролей с указанием параметров -->
+                        <!-- 5. Пароль / Секретный ключ + Настраиваемый генератор паролей и API-токенов разработчика -->
                         <Border
                             Padding="14,12"
                             Background="{ThemeResource LayerOnMicaBaseAltFillColorDefaultBrush}"
@@ -1268,6 +1422,16 @@
                                         <TextBlock FontSize="12" FontWeight="SemiBold" Text="PIN" />
                                     </Button>
                                 </Grid>
+
+                                <!-- Быстрые пресеты генератора API-токенов и ключей разработчика -->
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <TextBlock VerticalAlignment="Center" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="API / Dev-токен:" />
+                                    <Button Padding="8,3" Click="GenApiTokenPreset_Click" Tag="Hex256" Content="256-bit HEX" FontSize="11" />
+                                    <Button Padding="8,3" Click="GenApiTokenPreset_Click" Tag="Base64" Content="JWT Secret (Base64)" FontSize="11" />
+                                    <Button Padding="8,3" Click="GenApiTokenPreset_Click" Tag="UUID" Content="UUID v4" FontSize="11" />
+                                    <Button Padding="8,3" Click="GenApiTokenPreset_Click" Tag="Bearer" Content="Bearer sk_live_..." FontSize="11" />
+                                    <Button Padding="8,3" Click="GenApiTokenPreset_Click" Tag="SSH" Content="SSH Fingerprint" FontSize="11" />
+                                </StackPanel>
 
                                 <!-- Настройки параметров генератора паролей: Длина (ползунок + пресеты) и Наборы символов -->
                                 <Grid ColumnSpacing="10">
@@ -1383,7 +1547,7 @@
                             </StackPanel>
                         </Border>
 
-                        <!-- 6. Двухфакторная аутентификация (2FA / TOTP) + Живая проверка прохождения 2FA -->
+                        <!-- 6. Двухфакторная аутентификация (2FA / TOTP) + Сканер буфера + Живая проверка + QR -->
                         <Border
                             Padding="14,12"
                             Background="{ThemeResource LayerOnMicaBaseAltFillColorDefaultBrush}"
@@ -1391,9 +1555,10 @@
                             BorderThickness="1"
                             CornerRadius="8">
                             <StackPanel Spacing="8">
-                                <Grid ColumnSpacing="8">
+                                <Grid ColumnSpacing="6">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
 
@@ -1406,11 +1571,22 @@
                                     <Button
                                         Grid.Column="1"
                                         VerticalAlignment="Bottom"
+                                        Command="{x:Bind ViewModel.Scan2FaFromClipboardCommand}"
+                                        ToolTipService.ToolTip="Извлечь Base32 секрет или otpauth:// ссылку из буфера обмена">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <FontIcon FontFamily="Segoe Fluent Icons" FontSize="13" Glyph="&#xE77F;" />
+                                            <TextBlock FontSize="12" Text="Из буфера" />
+                                        </StackPanel>
+                                    </Button>
+
+                                    <Button
+                                        Grid.Column="2"
+                                        VerticalAlignment="Bottom"
                                         Command="{x:Bind ViewModel.GenerateTotpSecretCommand}"
                                         ToolTipService.ToolTip="{x:Bind ViewModel.UiTotpGenerate, Mode=OneWay}">
                                         <StackPanel Orientation="Horizontal" Spacing="6">
                                             <FontIcon FontFamily="Segoe Fluent Icons" FontSize="13" Glyph="&#xE72C;" />
-                                            <TextBlock FontSize="12" Text="Создать ключ 2FA" />
+                                            <TextBlock FontSize="12" Text="Создать 2FA" />
                                         </StackPanel>
                                     </Button>
                                 </Grid>
@@ -1423,10 +1599,11 @@
                                     BorderThickness="1"
                                     CornerRadius="6"
                                     Visibility="{x:Bind BoolToVis(ViewModel.HasValidEditTotp), Mode=OneWay}">
-                                    <Grid ColumnSpacing="12">
+                                    <Grid ColumnSpacing="10">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto" />
                                             <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
 
@@ -1458,7 +1635,18 @@
                                             ToolTipService.ToolTip="Скопировать текущий 6-значный код для подтверждения привязки 2FA на сайте">
                                             <StackPanel Orientation="Horizontal" Spacing="6">
                                                 <FontIcon FontFamily="Segoe Fluent Icons" FontSize="12" Glyph="&#xE8C8;" />
-                                                <TextBlock FontSize="12" FontWeight="SemiBold" Text="Копировать код 2FA" />
+                                                <TextBlock FontSize="12" FontWeight="SemiBold" Text="Копировать 2FA" />
+                                            </StackPanel>
+                                        </Button>
+
+                                        <Button
+                                            Grid.Column="3"
+                                            VerticalAlignment="Center"
+                                            Command="{x:Bind ViewModel.ShowEditTotpQrCommand}"
+                                            ToolTipService.ToolTip="Показать QR-код для сканирования камерой телефона">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <FontIcon FontFamily="Segoe Fluent Icons" FontSize="12" Glyph="&#xED14;" />
+                                                <TextBlock FontSize="12" FontWeight="SemiBold" Text="QR-код" />
                                             </StackPanel>
                                         </Button>
                                     </Grid>
@@ -1466,7 +1654,22 @@
                             </StackPanel>
                         </Border>
 
-                        <!-- 7. Теги и Пользовательские атрибуты (CVV, PIN, Порт, IP, Seed) -->
+                        <!-- 7. Настраиваемый макрос авто-печати (Auto-Type Sequence) -->
+                        <StackPanel Spacing="6">
+                            <TextBox
+                                Header="Макрос авто-ввода (Auto-Type Sequence)"
+                                PlaceholderText="{}{USER}{TAB}{PASS}{ENTER}"
+                                Text="{x:Bind ViewModel.EditAutoTypeSequence, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <TextBlock VerticalAlignment="Center" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="Шаблоны макроса:" />
+                                <Button Padding="8,3" Click="AutoTypeMacroPreset_Click" Tag="{}{USER}{TAB}{PASS}{ENTER}" Content="Логин + Tab + Пароль + Enter" FontSize="11" />
+                                <Button Padding="8,3" Click="AutoTypeMacroPreset_Click" Tag="{}{USER}{TAB}{PASS}{TAB}{TOTP}{ENTER}" Content="+ 2FA Код" FontSize="11" />
+                                <Button Padding="8,3" Click="AutoTypeMacroPreset_Click" Tag="{}{PASS}{ENTER}" Content="Только Пароль" FontSize="11" />
+                                <Button Padding="8,3" Click="AutoTypeMacroPreset_Click" Tag="{}{TOTP}{ENTER}" Content="Только 2FA" FontSize="11" />
+                            </StackPanel>
+                        </StackPanel>
+
+                        <!-- 8. Теги и Пользовательские атрибуты (CVV, PIN, Порт, IP, Seed) -->
                         <Grid ColumnSpacing="12">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
@@ -1488,7 +1691,40 @@
                                 TextWrapping="Wrap" />
                         </Grid>
 
-                        <!-- 8. Срок действия (ExpirationDate) и Заметки -->
+                        <!-- 9. Сейф резервных кодов восстановления 2FA и Зашифрованные вложения (до 2 МБ) -->
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0" Spacing="6">
+                                <TextBox
+                                    AcceptsReturn="True"
+                                    Header="Резервные коды восстановления 2FA (по 1 в строке)"
+                                    PlaceholderText="ABCD-1234&#x0a;EFGH-5678"
+                                    Text="{x:Bind ViewModel.EditRecoveryCodesText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                    TextWrapping="Wrap" />
+                                <Button
+                                    HorizontalAlignment="Left"
+                                    Padding="10,4"
+                                    Command="{x:Bind ViewModel.GenerateRecoveryCodesCommand}"
+                                    Content="Сгенерировать 8 резервных кодов"
+                                    FontSize="11" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="1" Spacing="6">
+                                <TextBlock FontSize="12" FontWeight="SemiBold" Text="Зашифрованные вложения (.pem, .ovpn, .pfx, до 2 МБ)" />
+                                <TextBlock FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{x:Bind ViewModel.EditAttachmentsSummary, Mode=OneWay}" TextWrapping="Wrap" />
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <Button Padding="10,4" Click="AddAttachment_Click" Content="Прикрепить файл..." FontSize="11" />
+                                    <Button Padding="10,4" Click="ExportCurrentAttachment_Click" Content="Сохранить..." FontSize="11" Visibility="{x:Bind BoolToVis(ViewModel.HasEditAttachments), Mode=OneWay}" />
+                                    <Button Padding="10,4" Command="{x:Bind ViewModel.ClearEditAttachmentsCommand}" Content="Очистить" FontSize="11" Visibility="{x:Bind BoolToVis(ViewModel.HasEditAttachments), Mode=OneWay}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- 10. Срок действия (ExpirationDate) и Заметки -->
                         <StackPanel Spacing="8">
                             <CheckBox Content="Указать конечную дату действия (уведомления за 30, 7, 1 день)" IsChecked="{x:Bind ViewModel.EditHasExpiration, Mode=TwoWay}" />
 
@@ -1506,8 +1742,8 @@
 
                         <TextBox
                             AcceptsReturn="True"
-                            Header="Заметки и резервные коды восстановления"
-                            PlaceholderText="Дополнительные примечания, резервные коды 2FA или инструкции..."
+                            Header="Заметки и инструкции"
+                            PlaceholderText="Дополнительные примечания или инструкции..."
                             Text="{x:Bind ViewModel.EditNotes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                             TextWrapping="Wrap" />
 
@@ -1538,11 +1774,11 @@
             </Border>
         </Grid>
 
-        <!-- ДИАЛОГ НАСТРОЕК ХРАНИЛИЩА И ОБЛАКА (МОДАЛЬНЫЙ ОВЕРЛЕЙ) -->
+        <!-- ДИАЛОГ НАСТРОЕК ХРАНИЛИЩА И ОБЛАКА (МОДАЛЬНЫЙ ОВЕРЛЕЙ 1.0.5) -->
         <Grid Background="#7F000000" Visibility="{x:Bind BoolToVis(ViewModel.IsSettingsDialogVisible), Mode=OneWay}">
             <Border
-                Width="640"
-                MaxHeight="760"
+                Width="680"
+                MaxHeight="780"
                 Margin="24"
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center"
@@ -1650,11 +1886,58 @@
                                 SelectedIndex="{x:Bind AutoLockIndex, Mode=TwoWay}" />
                         </StackPanel>
 
-                        <!-- Windows Hello Биометрия -->
-                        <ToggleSwitch
-                            Header="{x:Bind ViewModel.UiWindowsHelloToggle, Mode=OneWay}"
-                            IsEnabled="{x:Bind ViewModel.IsWindowsHelloAvailable, Mode=OneWay}"
-                            IsOn="{x:Bind ViewModel.SettingsWindowsHelloEnabled, Mode=TwoWay}" />
+                        <!-- Windows Hello и Анти-скриншот щит (WDA_EXCLUDEFROMCAPTURE) -->
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <ToggleSwitch
+                                Grid.Column="0"
+                                Header="{x:Bind ViewModel.UiWindowsHelloToggle, Mode=OneWay}"
+                                IsEnabled="{x:Bind ViewModel.IsWindowsHelloAvailable, Mode=OneWay}"
+                                IsOn="{x:Bind ViewModel.SettingsWindowsHelloEnabled, Mode=TwoWay}" />
+                            <ToggleSwitch
+                                Grid.Column="1"
+                                Header="Защита от скриншотов и OBS"
+                                IsOn="{x:Bind ViewModel.SettingsScreenCaptureProtection, Mode=TwoWay}" />
+                        </Grid>
+
+                        <!-- Ключ-файл (.stormkey) и Ложный сейф (Duress Password) -->
+                        <Border
+                            Padding="12"
+                            Background="{ThemeResource LayerOnMicaBaseAltFillColorDefaultBrush}"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                            BorderThickness="1"
+                            CornerRadius="6">
+                            <StackPanel Spacing="8">
+                                <TextBlock FontSize="12" FontWeight="SemiBold" Text="Аппаратный Ключ-файл (.stormkey) и Пароль под принуждением (Ложный сейф)" Foreground="{x:Bind ViewModel.CurrentTextPrimaryBrush, Mode=OneWay}" />
+                                <Grid ColumnSpacing="6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Grid.Column="0" PlaceholderText="Ключ-файл (.stormkey) не привязан" Text="{x:Bind ViewModel.SettingsKeyfilePath, Mode=OneWay}" IsReadOnly="True" />
+                                    <Button Grid.Column="1" Click="GenerateKeyfile_Click" Content="Создать .stormkey" FontSize="11" />
+                                    <Button Grid.Column="2" Click="PickKeyfile_Click" Content="Выбрать..." FontSize="11" />
+                                    <Button Grid.Column="3" Command="{x:Bind ViewModel.ClearKeyfileCommand}" Content="Отвязать" FontSize="11" />
+                                </Grid>
+                                <Grid ColumnSpacing="6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <PasswordBox Grid.Column="0" PlaceholderText="Задать пароль под принуждением (откроет ложный сейф)" Password="{x:Bind ViewModel.DuressPasswordInput, Mode=TwoWay}" />
+                                    <TextBlock Grid.Column="1" VerticalAlignment="Center" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{x:Bind ViewModel.DuressStatusText, Mode=OneWay}" />
+                                    <Button Grid.Column="2" Command="{x:Bind ViewModel.SaveDuressPasswordCommand}" Content="Задать" FontSize="11" />
+                                    <Button Grid.Column="3" Command="{x:Bind ViewModel.ClearDuressPasswordCommand}" Content="Сброс" FontSize="11" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
 
                         <!-- Аудит скомпрометированных паролей (Have I Been Pwned) -->
                         <StackPanel Spacing="6">
@@ -1675,7 +1958,7 @@
                             <ProgressBar Value="{x:Bind ViewModel.AuditProgress, Mode=OneWay}" Maximum="100" Visibility="{x:Bind BoolToVis(ViewModel.IsAuditingPasswords), Mode=OneWay}" />
                         </StackPanel>
 
-                        <!-- Смена мастер-пароля и резервное копирование -->
+                        <!-- Смена мастер-пароля, резервное копирование (.bak1..3) и зашифрованный архив (.stormbackup) -->
                         <Border
                             Padding="12"
                             Background="{ThemeResource LayerOnMicaBaseAltFillColorDefaultBrush}"
@@ -1683,7 +1966,7 @@
                             BorderThickness="1"
                             CornerRadius="6">
                             <StackPanel Spacing="8">
-                                <TextBlock FontSize="12" FontWeight="SemiBold" Text="Смена мастер-пароля и резервные копии (.bak1..3)" Foreground="{x:Bind ViewModel.CurrentTextPrimaryBrush, Mode=OneWay}" />
+                                <TextBlock FontSize="12" FontWeight="SemiBold" Text="Смена мастер-пароля, слоты .bak1..3 и зашифрованный бэкап (.stormbackup)" Foreground="{x:Bind ViewModel.CurrentTextPrimaryBrush, Mode=OneWay}" />
                                 <Grid ColumnSpacing="8">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
@@ -1694,14 +1977,19 @@
                                     <PasswordBox Grid.Column="1" PlaceholderText="Новый (мин. 6 симв.)" Password="{x:Bind ViewModel.NewMasterPasswordInput, Mode=TwoWay}" />
                                     <Button Grid.Column="2" Command="{x:Bind ViewModel.ChangeMasterPasswordCommand}" Content="Сменить" />
                                 </Grid>
-                                <Grid ColumnSpacing="8">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <Button Grid.Column="0" HorizontalAlignment="Stretch" Command="{x:Bind ViewModel.CreateBackupSnapshotCommand}" Content="Создать .bak копию" />
-                                    <Button Grid.Column="1" HorizontalAlignment="Stretch" Click="ExportRecoveryKit_Click" Content="Аварийный лист (.txt)" />
-                                </Grid>
+                                <TextBlock FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{x:Bind ViewModel.BackupSlotsSummaryText, Mode=OneWay}" TextWrapping="Wrap" />
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <Button Padding="8,4" Command="{x:Bind ViewModel.CreateBackupSnapshotCommand}" Content="Создать .bak" FontSize="11" />
+                                    <Button Padding="8,4" Click="RestoreBackupSlot_Click" Tag="1" Content="Откат .bak1" FontSize="11" />
+                                    <Button Padding="8,4" Click="RestoreBackupSlot_Click" Tag="2" Content="Откат .bak2" FontSize="11" />
+                                    <Button Padding="8,4" Click="RestoreBackupSlot_Click" Tag="3" Content="Откат .bak3" FontSize="11" />
+                                    <Button Padding="8,4" Click="ExportRecoveryKit_Click" Content="Аварийный лист (.txt)" FontSize="11" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <Button Padding="8,4" Click="ExportEncryptedBackup_Click" Content="Экспорт .stormbackup" FontSize="11" />
+                                    <Button Padding="8,4" Click="ImportEncryptedBackup_Click" Content="Импорт .stormbackup" FontSize="11" />
+                                    <Button Padding="8,4" Click="ExportDotEnv_Click" Content="Экспорт в .env" FontSize="11" />
+                                </StackPanel>
                             </StackPanel>
                         </Border>
 
@@ -1806,6 +2094,104 @@
             </Border>
         </Grid>
 
+        <!-- ИНТЕРАКТИВНЫЙ ЦЕНТР АУДИТА БЕЗОПАСНОСТИ (SECURITY AUDIT CENTER 1.0.5) -->
+        <Grid Background="#7F000000" Visibility="{x:Bind BoolToVis(ViewModel.IsSecurityAuditDialogVisible), Mode=OneWay}">
+            <Border
+                Width="640"
+                MaxHeight="740"
+                Margin="24"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Background="{x:Bind ViewModel.CurrentHeaderBrush, Mode=OneWay}"
+                BorderBrush="{x:Bind ViewModel.CurrentCardStrokeBrush, Mode=OneWay}"
+                BorderThickness="1"
+                CornerRadius="14">
+                <ScrollViewer Padding="26,22,12,22">
+                    <StackPanel Margin="0,0,18,0" Spacing="14">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <FontIcon FontFamily="Segoe Fluent Icons" FontSize="22" Foreground="{x:Bind ViewModel.CurrentAccentBrush, Mode=OneWay}" Glyph="&#xE8D7;" />
+                            <TextBlock FontSize="18" FontWeight="Bold" Text="Центр аудита безопасности хранилища" />
+                        </StackPanel>
+                        <TextBlock
+                            FontSize="12"
+                            LineHeight="18"
+                            Text="{x:Bind ViewModel.SecurityAuditReportText, Mode=OneWay}"
+                            TextWrapping="Wrap" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button
+                                Background="{x:Bind ViewModel.CurrentAccentBrush, Mode=OneWay}"
+                                Command="{x:Bind ViewModel.FixAllWeakAndDuplicatePasswordsCommand}"
+                                Foreground="#FFFFFF"
+                                Content="Авто-замена слабых и дублирующихся паролей" />
+                            <Button
+                                Command="{x:Bind ViewModel.AuditAllPasswordsCommand}"
+                                Content="Проверить утечки Have I Been Pwned" />
+                            <Button
+                                Click="CloseSecurityAuditDialog_Click"
+                                Content="Закрыть" />
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+
+        <!-- МОДАЛЬНОЕ ОКНО ВИЗУАЛЬНОГО QR-КОДА (ДЛЯ 2FA И WI-FI НА СМАРТФОН) -->
+        <Grid Background="#7F000000" Visibility="{x:Bind BoolToVis(ViewModel.IsQrMatrixDialogVisible), Mode=OneWay}">
+            <Border
+                Width="460"
+                Margin="24"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Background="{x:Bind ViewModel.CurrentHeaderBrush, Mode=OneWay}"
+                BorderBrush="{x:Bind ViewModel.CurrentCardStrokeBrush, Mode=OneWay}"
+                BorderThickness="1"
+                CornerRadius="16">
+                <StackPanel Padding="28" Spacing="14" HorizontalAlignment="Center">
+                    <TextBlock
+                        HorizontalAlignment="Center"
+                        FontSize="17"
+                        FontWeight="Bold"
+                        Text="{x:Bind ViewModel.QrMatrixTitle, Mode=OneWay}"
+                        TextAlignment="Center"
+                        TextWrapping="Wrap" />
+                    <TextBlock
+                        HorizontalAlignment="Center"
+                        FontSize="12"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        Text="{x:Bind ViewModel.QrMatrixSubtitle, Mode=OneWay}"
+                        TextAlignment="Center"
+                        TextWrapping="Wrap" />
+                    <Border
+                        Padding="14"
+                        HorizontalAlignment="Center"
+                        Background="#FFFFFF"
+                        CornerRadius="10">
+                        <TextBlock
+                            FontFamily="Consolas"
+                            FontSize="11"
+                            LineHeight="11"
+                            Foreground="#000000"
+                            Text="{x:Bind ViewModel.QrMatrixArt, Mode=OneWay}" />
+                    </Border>
+                    <TextBox
+                        IsReadOnly="True"
+                        FontFamily="Consolas"
+                        FontSize="11"
+                        Text="{x:Bind ViewModel.QrMatrixRawPayload, Mode=OneWay}" />
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="10">
+                        <Button
+                            Background="{x:Bind ViewModel.CurrentAccentBrush, Mode=OneWay}"
+                            Command="{x:Bind ViewModel.CopyQrPayloadCommand}"
+                            Foreground="#FFFFFF"
+                            Content="Скопировать URI" />
+                        <Button
+                            Click="CloseQrMatrixDialog_Click"
+                            Content="Закрыть" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+
         <!-- ДИАЛОГ «О ПРОГРАММЕ» STORM KEYS (МОДАЛЬНЫЙ ОВЕРЛЕЙ) -->
         <Grid Background="#7F000000" Visibility="{x:Bind BoolToVis(ViewModel.IsAboutDialogVisible), Mode=OneWay}">
             <Border
@@ -1889,7 +2275,7 @@
             </Border>
         </Grid>
 
-        <!-- ЭКРАН БЛОКИРОВКИ / АВТОРИЗАЦИИ (ОВЕРЛЕЙ) -->
+        <!-- ЭКРАН БЛОКИРОВКИ / АВТОРИЗАЦИИ (ОВЕРЛЕЙ С ИСПРАВЛЕННЫМ WINDOWS HELLO И ВВОДОМ МАСТЕР-ПАРОЛЯ) -->
         <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}" Visibility="{x:Bind BoolToVis(ViewModel.IsVaultLocked), Mode=OneWay}">
             <Border
                 Width="440"
@@ -1941,18 +2327,20 @@
                             x:Name="NewMasterPasswordBox"
                             Header="Мастер-пароль (минимум 6 символов)"
                             Password="{x:Bind ViewModel.MasterPasswordInput, Mode=TwoWay}"
+                            PasswordChanged="UnlockPasswordBox_PasswordChanged"
                             PlaceholderText="Придумайте надежный мастер-пароль" />
 
                         <PasswordBox
                             x:Name="ConfirmMasterPasswordBox"
                             Header="Подтвердите мастер-пароль"
                             Password="{x:Bind ViewModel.ConfirmPasswordInput, Mode=TwoWay}"
+                            PasswordChanged="ConfirmMasterPasswordBox_PasswordChanged"
                             PlaceholderText="Повторите ввод мастер-пароля" />
 
                         <Button
                             HorizontalAlignment="Stretch"
                             Background="{ThemeResource AccentFillColorDefaultBrush}"
-                            Command="{x:Bind ViewModel.UnlockOrCreateVaultCommand}"
+                            Click="CreateVaultButton_Click"
                             Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}">
                             <TextBlock FontWeight="SemiBold" Text="Создать хранилище" />
                         </Button>
@@ -1965,17 +2353,18 @@
                             Header="Мастер-пароль"
                             KeyDown="UnlockPasswordBox_KeyDown"
                             Password="{x:Bind ViewModel.MasterPasswordInput, Mode=TwoWay}"
+                            PasswordChanged="UnlockPasswordBox_PasswordChanged"
                             PlaceholderText="Введите мастер-пароль для доступа..." />
 
                         <Button
                             HorizontalAlignment="Stretch"
                             Background="{ThemeResource AccentFillColorDefaultBrush}"
-                            Command="{x:Bind ViewModel.UnlockOrCreateVaultCommand}"
+                            Click="UnlockVaultButton_Click"
                             Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}">
                             <TextBlock FontWeight="SemiBold" Text="Разблокировать хранилище" />
                         </Button>
 
-                        <!-- Кнопка Windows Hello (биометрия / PIN) -->
+                        <!-- Кнопка Windows Hello (биометрия / PIN поверх окна) -->
                         <Button
                             HorizontalAlignment="Stretch"
                             Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
@@ -1997,6 +2386,7 @@
                         FontWeight="SemiBold"
                         Foreground="#D13438"
                         Text="{x:Bind ViewModel.MasterPasswordErrorMessage, Mode=OneWay}"
+                        TextWrapping="Wrap"
                         Visibility="{x:Bind StringToVis(ViewModel.MasterPasswordErrorMessage), Mode=OneWay}" />
 
                     <!-- Индикатор загрузки -->

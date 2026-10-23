@@ -1,16 +1,30 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace StormKeys.Helpers;
 
+public sealed record ActiveWindowInfo(IntPtr Handle, string Title, string ProcessName);
+
 /// <summary>
-/// Нативный сервис быстрой вставки и авто-ввода (Auto-Type) учётных данных, ключей и 2FA-кодов
+/// Нативный сервис быстрой вставки, распознавания активного окна и авто-ввода по макросам (Auto-Type)
 /// напрямую в активное окно браузера или программы через Win32 SendInput (KEYEVENTF_UNICODE).
 /// </summary>
 public static class AutoTypeHelper
 {
+    public static readonly string[] MacroPresets = new[]
+    {
+        "{USER}{TAB}{PASS}{ENTER}",
+        "{USER}{ENTER}{DELAY 1000}{PASS}{ENTER}",
+        "{PASS}{ENTER}",
+        "{TOTP}{ENTER}",
+        "{USER}{TAB}{PASS}{TAB}{TOTP}{ENTER}"
+    };
+
     private const int INPUT_KEYBOARD = 1;
     private const uint KEYEVENTF_KEYUP = 0x0002;
     private const uint KEYEVENTF_UNICODE = 0x0004;
@@ -74,6 +88,9 @@ public static class AutoTypeHelper
     private static extern IntPtr GetWindow(IntPtr hWnd, uint uCmd);
 
     [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll")]
     private static extern bool IsWindowVisible(IntPtr hWnd);
 
     [DllImport("user32.dll")]
@@ -82,9 +99,161 @@ public static class AutoTypeHelper
     [DllImport("user32.dll")]
     private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetWindowTextW(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
+
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
     private const uint GW_HWNDNEXT = 2;
     private const int SW_MINIMIZE = 6;
     private const int SW_RESTORE = 9;
+
+    /// <summary>
+    /// Определяет заголовок и имя процесса предыдущего видимого окна в Z-порядке Windows.
+    /// </summary>
+    public static ActiveWindowInfo GetPreviousWindowInfo(IntPtr currentAppHwnd)
+    {
+        try
+        {
+            IntPtr hWnd = currentAppHwnd != IntPtr.Zero ? GetWindow(currentAppHwnd, GW_HWNDNEXT) : GetForegroundWindow();
+            int steps = 0;
+            while (hWnd != IntPtr.Zero && steps++ < 60)
+            {
+                if (hWnd != currentAppHwnd && IsWindowVisible(hWnd))
+                {
+                    var sb = new StringBuilder(256);
+                    int len = GetWindowTextW(hWnd, sb, sb.Capacity);
+                    string title = len > 0 ? sb.ToString().Trim() : string.Empty;
+                    if (!string.IsNullOrWhiteSpace(title) &&
+                        !title.Equals("Program Manager", StringComparison.OrdinalIgnoreCase) &&
+                        !title.StartsWith("STORM KEYS", StringComparison.OrdinalIgnoreCase))
+                    {
+                        string procName = string.Empty;
+                        try
+                        {
+                            GetWindowThreadProcessId(hWnd, out uint pid);
+                            if (pid != 0)
+                            {
+                                using var proc = Process.GetProcessById((int)pid);
+                                procName = proc.ProcessName ?? string.Empty;
+                            }
+                        }
+                        catch { }
+
+                        return new ActiveWindowInfo(hWnd, title, procName);
+                    }
+                }
+                hWnd = GetWindow(hWnd, GW_HWNDNEXT);
+            }
+        }
+        catch { }
+
+        return new ActiveWindowInfo(IntPtr.Zero, string.Empty, string.Empty);
+    }
+
+    /// <summary>
+    /// Выполняет настраиваемый макрос авто-ввода ({USER}{TAB}{PASS}{ENTER}, {DELAY 1000}, {TOTP}).
+    /// </summary>
+    public static async Task<bool> ExecuteMacroAsync(
+        IntPtr currentAppHwnd,
+        string? macroSequence,
+        string? username,
+        string? secret,
+        string? totpCode,
+        int delayBeforeTypingMs = 420)
+    {
+        string seq = string.IsNullOrWhiteSpace(macroSequence)
+            ? "{USER}{TAB}{PASS}{ENTER}"
+            : macroSequence.Trim();
+
+        try
+        {
+            if (currentAppHwnd != IntPtr.Zero)
+            {
+                ShowWindow(currentAppHwnd, SW_MINIMIZE);
+            }
+
+            if (delayBeforeTypingMs > 0)
+            {
+                await Task.Delay(delayBeforeTypingMs).ConfigureAwait(false);
+            }
+
+            var tokenRegex = new Regex(@"\{([A-Za-z0-9_ ]+)\}");
+            int pos = 0;
+
+            foreach (Match m in tokenRegex.Matches(seq))
+            {
+                if (m.Index > pos)
+                {
+                    string literal = seq.Substring(pos, m.Index - pos);
+                    SendUnicodeText(literal);
+                    await Task.Delay(30).ConfigureAwait(false);
+                }
+
+                string cmd = m.Groups[1].Value.Trim().ToUpperInvariant();
+                if (cmd == "USER" || cmd == "USERNAME" || cmd == "LOGIN")
+                {
+                    if (!string.IsNullOrEmpty(username))
+                    {
+                        SendUnicodeText(username!);
+                        await Task.Delay(50).ConfigureAwait(false);
+                    }
+                }
+                else if (cmd == "PASS" || cmd == "PASSWORD" || cmd == "SECRET")
+                {
+                    if (!string.IsNullOrEmpty(secret))
+                    {
+                        SendUnicodeText(secret!);
+                        await Task.Delay(50).ConfigureAwait(false);
+                    }
+                }
+                else if (cmd == "TOTP" || cmd == "2FA" || cmd == "OTP")
+                {
+                    if (!string.IsNullOrEmpty(totpCode))
+                    {
+                        SendUnicodeText(totpCode!.Replace(" ", ""));
+                        await Task.Delay(50).ConfigureAwait(false);
+                    }
+                }
+                else if (cmd == "TAB")
+                {
+                    SendVirtualKey(VK_TAB);
+                    await Task.Delay(60).ConfigureAwait(false);
+                }
+                else if (cmd == "ENTER" || cmd == "RETURN")
+                {
+                    SendVirtualKey(VK_RETURN);
+                    await Task.Delay(60).ConfigureAwait(false);
+                }
+                else if (cmd.StartsWith("DELAY"))
+                {
+                    string msPart = cmd.Substring(5).Trim();
+                    if (int.TryParse(msPart, out int delayMs) && delayMs > 0)
+                    {
+                        await Task.Delay(Math.Clamp(delayMs, 20, 10000)).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        await Task.Delay(500).ConfigureAwait(false);
+                    }
+                }
+
+                pos = m.Index + m.Length;
+            }
+
+            if (pos < seq.Length)
+            {
+                SendUnicodeText(seq.Substring(pos));
+            }
+
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
 
     /// <summary>
     /// Переключает фокус на предыдущее окно пользователя и печатает Логин -> Tab -> Пароль (-> Enter).

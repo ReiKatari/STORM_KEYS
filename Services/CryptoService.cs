@@ -14,6 +14,9 @@ public interface ICryptoService
     Task<byte[]> EncryptVaultAsync(VaultContainer container, string masterPassword);
     Task<VaultContainer> DecryptVaultAsync(byte[] encryptedData, string masterPassword);
     Task<bool> VerifyMasterPasswordAsync(byte[] encryptedData, string masterPassword);
+    Task<string> GenerateKeyfileAsync(string keyfilePath);
+    string CombinePasswordWithKeyfile(string masterPassword, string? keyfilePath);
+    string ComputePasswordVerifierHash(string password);
 }
 
 public class CryptoService : ICryptoService
@@ -29,6 +32,52 @@ public class CryptoService : ICryptoService
     private const int Argon2MemoryCost = 65536; // 64 MB
     private const int Argon2Iterations = 4;
     private static readonly int Argon2Parallelism = Math.Max(1, Math.Min(4, Environment.ProcessorCount));
+
+    /// <summary>
+    /// Создаёт криптографический 64-байтный ключевой файл (.stormkey) для двухфакторной защиты контейнера.
+    /// </summary>
+    public async Task<string> GenerateKeyfileAsync(string keyfilePath)
+    {
+        byte[] rawKey = new byte[64];
+        RandomNumberGenerator.Fill(rawKey);
+        string content = "STORM-KEYFILE-V1:" + Convert.ToBase64String(rawKey);
+        string? dir = Path.GetDirectoryName(keyfilePath);
+        if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+            Directory.CreateDirectory(dir);
+
+        await File.WriteAllTextAsync(keyfilePath, content, Encoding.UTF8);
+        CryptographicOperations.ZeroMemory(rawKey);
+        return keyfilePath;
+    }
+
+    /// <summary>
+    /// Комбинирует мастер-пароль и содержимое ключевого файла (.stormkey) через HMAC-SHA256.
+    /// Если ключевой файл не задан, возвращает исходный мастер-пароль.
+    /// </summary>
+    public string CombinePasswordWithKeyfile(string masterPassword, string? keyfilePath)
+    {
+        if (string.IsNullOrWhiteSpace(keyfilePath) || !File.Exists(keyfilePath))
+            return masterPassword;
+
+        byte[] fileBytes = File.ReadAllBytes(keyfilePath);
+        byte[] passBytes = Encoding.UTF8.GetBytes(masterPassword);
+        using var hmac = new HMACSHA256(fileBytes);
+        byte[] mac = hmac.ComputeHash(passBytes);
+        return $"{masterPassword}::KF::{Convert.ToHexString(mac)}";
+    }
+
+    /// <summary>
+    /// Вычисляет криптостойкий SHA-256 хеш с солью для проверки пароля под принуждением (Duress Password).
+    /// </summary>
+    public string ComputePasswordVerifierHash(string password)
+    {
+        if (string.IsNullOrEmpty(password))
+            return string.Empty;
+
+        byte[] bytes = Encoding.UTF8.GetBytes("STORM_DURESS_SALT_V1::" + password);
+        byte[] hash = SHA256.HashData(bytes);
+        return Convert.ToHexString(hash);
+    }
 
     public async Task<byte[]> EncryptVaultAsync(VaultContainer container, string masterPassword)
     {

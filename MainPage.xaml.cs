@@ -15,6 +15,7 @@ namespace StormKeys;
 
 public sealed partial class MainPage : Page
 {
+    public static MainPage? Instance { get; private set; }
     public MainViewModel ViewModel => App.ViewModel;
 
     public Visibility BoolToVis(bool val) => val ? Visibility.Visible : Visibility.Collapsed;
@@ -120,9 +121,26 @@ public sealed partial class MainPage : Page
 
     public MainPage()
     {
+        Instance = this;
         InitializeComponent();
         Loaded += MainPage_Loaded;
         PreviewKeyDown += MainPage_PreviewKeyDown;
+    }
+
+    public void FocusSearchBoxForSpotlight()
+    {
+        if (!ViewModel.IsVaultLocked && SearchBox != null)
+        {
+            SearchBox.Focus(FocusState.Programmatic);
+        }
+    }
+
+    private void SearchBox_QuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
+    {
+        if (!ViewModel.IsVaultLocked && ViewModel.FilteredEntries.Count > 0)
+        {
+            _ = ViewModel.AutoTypeEntryCommand.ExecuteAsync(ViewModel.FilteredEntries[0]);
+        }
     }
 
     private void MainPage_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
@@ -204,6 +222,20 @@ public sealed partial class MainPage : Page
         {
             if (ViewModel == null) return;
 
+            if (ViewModel.IsQrMatrixDialogVisible)
+            {
+                ViewModel.IsQrMatrixDialogVisible = false;
+                e.Handled = true;
+                return;
+            }
+
+            if (ViewModel.IsSecurityAuditDialogVisible)
+            {
+                ViewModel.IsSecurityAuditDialogVisible = false;
+                e.Handled = true;
+                return;
+            }
+
             if (ViewModel.IsTeachingTipOpen)
             {
                 ViewModel.IsTeachingTipOpen = false;
@@ -283,6 +315,22 @@ public sealed partial class MainPage : Page
         }
     }
 
+    private void ApiTokenPreset_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is string format)
+        {
+            ViewModel.GenerateApiTokenPreset(format);
+        }
+    }
+
+    private void MacroPreset_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is string seq)
+        {
+            ViewModel.SetAutoTypeMacroPreset(seq);
+        }
+    }
+
     private void GenSlider_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
     {
         if (ViewModel != null)
@@ -311,6 +359,14 @@ public sealed partial class MainPage : Page
         }
     }
 
+    private void RestoreFromTrash_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is KeyEntry entry)
+        {
+            _ = ViewModel.RestoreFromTrashCommand.ExecuteAsync(entry);
+        }
+    }
+
     private void CopyUsername_Click(object sender, RoutedEventArgs e)
     {
         if (sender is Button btn && btn.Tag is KeyEntry entry)
@@ -331,7 +387,101 @@ public sealed partial class MainPage : Page
     {
         if (sender is Button btn && btn.Tag is KeyEntry entry)
         {
-            ViewModel.CopyTotpCode(entry);
+            _ = ViewModel.CopyTotpCodeCommand.ExecuteAsync(entry);
+        }
+    }
+
+    private void CopyCardCvv_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is KeyEntry entry)
+        {
+            ViewModel.CopyCardCvv(entry);
+        }
+    }
+
+    private void CopyCardExpiry_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is KeyEntry entry)
+        {
+            ViewModel.CopyCardExpiry(entry);
+        }
+    }
+
+    private void CopyCardPin_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is KeyEntry entry)
+        {
+            ViewModel.CopyCardPin(entry);
+        }
+    }
+
+    private void ConnectWifi_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is KeyEntry entry)
+        {
+            ViewModel.ConnectWifiCard(entry);
+        }
+    }
+
+    private void ShowQrMatrix_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is KeyEntry entry)
+        {
+            ViewModel.ShowEntryQrMatrix(entry);
+        }
+    }
+
+    private void ShowTotpQrFromCard_Click(object sender, RoutedEventArgs e) => ShowQrMatrix_Click(sender, e);
+
+    private void ShowWifiQr_Click(object sender, RoutedEventArgs e) => ShowQrMatrix_Click(sender, e);
+
+    private void GenApiTokenPreset_Click(object sender, RoutedEventArgs e) => ApiTokenPreset_Click(sender, e);
+
+    private void AutoTypeMacroPreset_Click(object sender, RoutedEventArgs e) => MacroPreset_Click(sender, e);
+
+    private void AddAttachment_Click(object sender, RoutedEventArgs e) => AttachFile_Click(sender, e);
+
+    private void ExportAttachment_Click(object sender, RoutedEventArgs e) => SaveAttachments_Click(sender, e);
+
+    private void ExportCurrentAttachment_Click(object sender, RoutedEventArgs e) => SaveAttachments_Click(sender, e);
+
+    private void ExportEncryptedBackup_Click(object sender, RoutedEventArgs e) => ExportStormBackup_Click(sender, e);
+
+    private void ImportEncryptedBackup_Click(object sender, RoutedEventArgs e) => ImportFile_Click(sender, e);
+
+    private void CopyRecoveryCode_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is KeyEntry entry)
+        {
+            _ = ViewModel.CopyNextRecoveryCodeCommand.ExecuteAsync(entry);
+        }
+    }
+
+    // Идея #4: Drag & Drop чипов Логина, Пароля и 2FA в браузер и программы
+    private void CardUsername_DragStarting(UIElement sender, DragStartingEventArgs args)
+    {
+        if (sender is FrameworkElement fe && fe.DataContext is KeyEntry entry && !string.IsNullOrEmpty(entry.UsernameOrEmail))
+        {
+            args.Data.SetText(entry.UsernameOrEmail);
+            args.Data.RequestedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Copy;
+        }
+    }
+
+    private void CardSecret_DragStarting(UIElement sender, DragStartingEventArgs args)
+    {
+        if (sender is FrameworkElement fe && fe.DataContext is KeyEntry entry && !string.IsNullOrEmpty(entry.SecretValue))
+        {
+            args.Data.SetText(entry.SecretValue);
+            args.Data.RequestedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Copy;
+        }
+    }
+
+    private void CardTotp_DragStarting(UIElement sender, DragStartingEventArgs args)
+    {
+        if (sender is FrameworkElement fe && fe.DataContext is KeyEntry entry && !string.IsNullOrEmpty(entry.CurrentTotpCode))
+        {
+            args.Data.SetText(entry.CurrentTotpCode.Replace(" ", ""));
+            args.Data.RequestedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Copy;
         }
     }
 
@@ -372,6 +522,59 @@ public sealed partial class MainPage : Page
         if (sender is Button btn && btn.Tag is KeyEntry entry)
         {
             ViewModel.CopyFullSummary(entry);
+        }
+    }
+
+    private async void AttachFile_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var picker = new FileOpenPicker();
+            if (MainWindow.Instance != null)
+            {
+                var hwnd = WindowNative.GetWindowHandle(MainWindow.Instance);
+                InitializeWithWindow.Initialize(picker, hwnd);
+            }
+
+            picker.ViewMode = PickerViewMode.List;
+            picker.SuggestedStartLocation = PickerLocationId.DocumentsLibrary;
+            picker.FileTypeFilter.Add("*");
+
+            var file = await picker.PickSingleFileAsync();
+            if (file != null)
+            {
+                await ViewModel.AttachFileToEditDialogAsync(file.Path);
+            }
+        }
+        catch (Exception ex)
+        {
+            ViewModel.StatusMessage = $"Ошибка выбора файла вложения: {ex.Message}";
+        }
+    }
+
+    private async void SaveAttachments_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            KeyEntry? entry = (sender as FrameworkElement)?.Tag as KeyEntry;
+            var picker = new FolderPicker();
+            if (MainWindow.Instance != null)
+            {
+                var hwnd = WindowNative.GetWindowHandle(MainWindow.Instance);
+                InitializeWithWindow.Initialize(picker, hwnd);
+            }
+            picker.SuggestedStartLocation = PickerLocationId.DocumentsLibrary;
+            picker.FileTypeFilter.Add("*");
+
+            var folder = await picker.PickSingleFolderAsync();
+            if (folder != null)
+            {
+                await ViewModel.ExportAttachmentsToFolderAsync(entry, folder.Path);
+            }
+        }
+        catch (Exception ex)
+        {
+            ViewModel.StatusMessage = $"Ошибка извлечения вложений: {ex.Message}";
         }
     }
 
@@ -436,6 +639,125 @@ public sealed partial class MainPage : Page
         catch (Exception ex)
         {
             ViewModel.StatusMessage = $"Ошибка сохранения аварийного листа: {ex.Message}";
+        }
+    }
+
+    private async void ExportDotEnv_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var picker = new FileSavePicker();
+            if (MainWindow.Instance != null)
+            {
+                var hwnd = WindowNative.GetWindowHandle(MainWindow.Instance);
+                InitializeWithWindow.Initialize(picker, hwnd);
+            }
+
+            picker.SuggestedStartLocation = PickerLocationId.DocumentsLibrary;
+            picker.FileTypeChoices.Add("Файл окружения .env", new List<string> { ".env" });
+            picker.SuggestedFileName = $"STORM_KEYS_{DateTime.Now:yyyyMMdd}";
+
+            var file = await picker.PickSaveFileAsync();
+            if (file != null)
+            {
+                await App.ImportExportService.ExportToDotEnvAsync(ViewModel.FilteredEntries, file.Path);
+                ViewModel.StatusMessage = $"Экспорт ключей и секретов в .env выполнен: {file.Name}";
+            }
+        }
+        catch (Exception ex)
+        {
+            ViewModel.StatusMessage = $"Ошибка экспорта в .env: {ex.Message}";
+        }
+    }
+
+    private async void ExportStormBackup_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var picker = new FileSavePicker();
+            if (MainWindow.Instance != null)
+            {
+                var hwnd = WindowNative.GetWindowHandle(MainWindow.Instance);
+                InitializeWithWindow.Initialize(picker, hwnd);
+            }
+
+            picker.SuggestedStartLocation = PickerLocationId.DocumentsLibrary;
+            picker.FileTypeChoices.Add("Зашифрованный архив STORM", new List<string> { ".stormbackup" });
+            picker.SuggestedFileName = $"STORM_KEYS_Backup_{DateTime.Now:yyyyMMdd}";
+
+            var file = await picker.PickSaveFileAsync();
+            if (file != null)
+            {
+                await App.ImportExportService.ExportEncryptedBackupAsync(ViewModel.FilteredEntries, file.Path, "STORM");
+                ViewModel.StatusMessage = $"Зашифрованный портативный архив (.stormbackup) сохранён: {file.Name}";
+            }
+        }
+        catch (Exception ex)
+        {
+            ViewModel.StatusMessage = $"Ошибка создания .stormbackup: {ex.Message}";
+        }
+    }
+
+    private async void GenerateKeyfile_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var picker = new FileSavePicker();
+            if (MainWindow.Instance != null)
+            {
+                var hwnd = WindowNative.GetWindowHandle(MainWindow.Instance);
+                InitializeWithWindow.Initialize(picker, hwnd);
+            }
+
+            picker.SuggestedStartLocation = PickerLocationId.DocumentsLibrary;
+            picker.FileTypeChoices.Add("Ключ-файл STORM (.stormkey)", new List<string> { ".stormkey" });
+            picker.SuggestedFileName = "vault_master";
+
+            var file = await picker.PickSaveFileAsync();
+            if (file != null)
+            {
+                await ViewModel.ApplyKeyfileAsync(file.Path, createNew: true);
+            }
+        }
+        catch (Exception ex)
+        {
+            ViewModel.StatusMessage = $"Ошибка создания .stormkey: {ex.Message}";
+        }
+    }
+
+    private async void PickKeyfile_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var picker = new FileOpenPicker();
+            if (MainWindow.Instance != null)
+            {
+                var hwnd = WindowNative.GetWindowHandle(MainWindow.Instance);
+                InitializeWithWindow.Initialize(picker, hwnd);
+            }
+
+            picker.ViewMode = PickerViewMode.List;
+            picker.SuggestedStartLocation = PickerLocationId.DocumentsLibrary;
+            picker.FileTypeFilter.Add(".stormkey");
+            picker.FileTypeFilter.Add(".key");
+
+            var file = await picker.PickSingleFileAsync();
+            if (file != null)
+            {
+                await ViewModel.ApplyKeyfileAsync(file.Path, createNew: false);
+            }
+        }
+        catch (Exception ex)
+        {
+            ViewModel.StatusMessage = $"Ошибка выбора .stormkey: {ex.Message}";
+        }
+    }
+
+    private void RestoreBackupSlot_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is string slotStr)
+        {
+            _ = ViewModel.RestoreBackupSlotCommand.ExecuteAsync(slotStr);
         }
     }
 
@@ -512,10 +834,80 @@ public sealed partial class MainPage : Page
         ViewModel.IsAboutDialogVisible = false;
     }
 
+    private void CloseQrMatrixDialog_Click(object sender, RoutedEventArgs e)
+    {
+        ViewModel.IsQrMatrixDialogVisible = false;
+    }
+
+    private void CloseSecurityAuditDialog_Click(object sender, RoutedEventArgs e)
+    {
+        ViewModel.IsSecurityAuditDialogVisible = false;
+    }
+
+    private void AuditFilterChip_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is string chip)
+        {
+            ViewModel.IsSecurityAuditDialogVisible = false;
+            ViewModel.FilterByChipCommand.Execute(chip);
+        }
+    }
+
+    private void UnlockPasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
+    {
+        if (sender is PasswordBox pb && ViewModel != null)
+        {
+            ViewModel.MasterPasswordInput = pb.Password;
+        }
+    }
+
+    private void NewMasterPasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
+    {
+        if (sender is PasswordBox pb && ViewModel != null)
+        {
+            ViewModel.MasterPasswordInput = pb.Password;
+        }
+    }
+
+    private void ConfirmMasterPasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
+    {
+        if (sender is PasswordBox pb && ViewModel != null)
+        {
+            ViewModel.ConfirmPasswordInput = pb.Password;
+        }
+    }
+
+    private void UnlockVaultButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (UnlockPasswordBox != null)
+        {
+            ViewModel.MasterPasswordInput = UnlockPasswordBox.Password;
+        }
+        _ = ViewModel.UnlockOrCreateVaultCommand.ExecuteAsync(null);
+    }
+
+    private void CreateVaultButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (NewMasterPasswordBox != null)
+        {
+            ViewModel.MasterPasswordInput = NewMasterPasswordBox.Password;
+        }
+        if (ConfirmMasterPasswordBox != null)
+        {
+            ViewModel.ConfirmPasswordInput = ConfirmMasterPasswordBox.Password;
+        }
+        _ = ViewModel.UnlockOrCreateVaultCommand.ExecuteAsync(null);
+    }
+
     private void UnlockPasswordBox_KeyDown(object sender, KeyRoutedEventArgs e)
     {
         if (e.Key == Windows.System.VirtualKey.Enter)
         {
+            e.Handled = true;
+            if (sender is PasswordBox pb)
+            {
+                ViewModel.MasterPasswordInput = pb.Password;
+            }
             _ = ViewModel.UnlockOrCreateVaultCommand.ExecuteAsync(null);
         }
     }
@@ -543,6 +935,8 @@ public sealed partial class MainPage : Page
             picker.SuggestedStartLocation = PickerLocationId.DocumentsLibrary;
             picker.FileTypeFilter.Add(".csv");
             picker.FileTypeFilter.Add(".json");
+            picker.FileTypeFilter.Add(".xml");
+            picker.FileTypeFilter.Add(".stormbackup");
             picker.FileTypeFilter.Add(".env");
             picker.FileTypeFilter.Add(".txt");
 

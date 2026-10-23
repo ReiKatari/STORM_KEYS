@@ -6,7 +6,7 @@ namespace StormKeys.Models;
 public class VaultMetadata
 {
     public string AppName { get; set; } = "STORM KEYS";
-    public string SchemaVersion { get; set; } = "1.0.3";
+    public string SchemaVersion { get; set; } = "1.0.5";
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset LastModifiedAt { get; set; } = DateTimeOffset.UtcNow;
     public string DeviceName { get; set; } = Environment.MachineName;
@@ -33,6 +33,10 @@ public class AppSettings
     public bool WindowsHelloEnabled { get; set; } = false;
     public bool IsCompactView { get; set; } = false; // Переключение плотности: Комфортный / Компактный
     public bool AutoBackupEnabled { get; set; } = true; // Автоматические резервные копии .stormbackup
+    public string KeyfilePath { get; set; } = string.Empty; // Двухфакторный файл-ключ (.stormkey)
+    public string DuressPasswordHash { get; set; } = string.Empty; // Хеш ложного пароля под принуждением (Decoy Vault)
+    public bool ScreenCaptureProtection { get; set; } = false; // Защита от скриншотов и OBS (WDA_EXCLUDEFROMCAPTURE)
+    public bool AlwaysOnTopMiniMode { get; set; } = false; // Компактный закреплённый мини-режим поверх всех окон
     public string Language { get; set; } = "ru"; // 11 языков
     public string Theme { get; set; } = "MIDNIGHT"; // 9 тем
     public string Accent { get; set; } = "Violet"; // 13 акцентов

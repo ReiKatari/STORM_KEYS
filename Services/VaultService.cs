@@ -1,16 +1,20 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using StormKeys.Models;
 
 namespace StormKeys.Services;
 
+public sealed record BackupSlotInfo(int SlotNumber, string FilePath, DateTimeOffset LastWriteTime, long SizeBytes);
+
 public interface IVaultService
 {
     bool IsVaultCreated { get; }
     bool IsUnlocked { get; }
+    bool IsDecoySession { get; }
     VaultContainer? CurrentContainer { get; }
     AppSettings Settings { get; }
     string LocalVaultPath { get; }
@@ -25,6 +29,8 @@ public interface IVaultService
     Task SaveSettingsAsync();
     void DetectCommonCloudFolders();
     Task<string> CreateBackupSnapshotAsync();
+    List<BackupSlotInfo> GetBackupSlotsSummary();
+    Task<bool> RestoreBackupSlotAsync(int slotNumber);
 }
 
 public class VaultService : IVaultService
@@ -33,7 +39,8 @@ public class VaultService : IVaultService
     private string _activeMasterPassword = string.Empty;
 
     public bool IsVaultCreated => File.Exists(LocalVaultPath);
-    public bool IsUnlocked => CurrentContainer != null && !string.IsNullOrEmpty(_activeMasterPassword);
+    public bool IsUnlocked => CurrentContainer != null && (!string.IsNullOrEmpty(_activeMasterPassword) || IsDecoySession);
+    public bool IsDecoySession { get; private set; }
     public VaultContainer? CurrentContainer { get; private set; }
     public AppSettings Settings { get; private set; } = new();
 
@@ -131,12 +138,13 @@ public class VaultService : IVaultService
         if (string.IsNullOrWhiteSpace(masterPassword))
             throw new ArgumentException("Мастер-пароль не может быть пустым.");
 
+        IsDecoySession = false;
         CurrentContainer = new VaultContainer
         {
             Metadata = new VaultMetadata
             {
                 AppName = "STORM KEYS",
-                SchemaVersion = "1.0.0",
+                SchemaVersion = "1.0.5",
                 CreatedAt = DateTimeOffset.UtcNow,
                 LastModifiedAt = DateTimeOffset.UtcNow,
                 DeviceName = Environment.MachineName,
@@ -154,12 +162,38 @@ public class VaultService : IVaultService
         if (!IsVaultCreated)
             return false;
 
+        // 1. Проверка ложного пароля под принуждением (Duress / Decoy Vault)
+        if (!string.IsNullOrWhiteSpace(Settings.DuressPasswordHash))
+        {
+            string inputHash = _cryptoService.ComputePasswordVerifierHash(masterPassword);
+            if (string.Equals(inputHash, Settings.DuressPasswordHash, StringComparison.OrdinalIgnoreCase))
+            {
+                IsDecoySession = true;
+                _activeMasterPassword = masterPassword;
+                CurrentContainer = BuildDecoyVaultContainer();
+                return true;
+            }
+        }
+
         try
         {
             byte[] encrypted = await File.ReadAllBytesAsync(LocalVaultPath);
-            var container = await _cryptoService.DecryptVaultAsync(encrypted, masterPassword);
+            string effectivePassword = _cryptoService.CombinePasswordWithKeyfile(masterPassword, Settings.KeyfilePath);
+            VaultContainer container;
+            try
+            {
+                container = await _cryptoService.DecryptVaultAsync(encrypted, effectivePassword);
+            }
+            catch when (!string.IsNullOrWhiteSpace(Settings.KeyfilePath))
+            {
+                // Fallback, если ключевой файл только что привязан, а база ещё зашифрована чистым паролем
+                container = await _cryptoService.DecryptVaultAsync(encrypted, masterPassword);
+            }
+
+            IsDecoySession = false;
             CurrentContainer = container;
             _activeMasterPassword = masterPassword;
+            PurgeExpiredTrashEntries();
             return true;
         }
         catch
@@ -168,9 +202,52 @@ public class VaultService : IVaultService
         }
     }
 
+    private static VaultContainer BuildDecoyVaultContainer()
+    {
+        return new VaultContainer
+        {
+            Metadata = new VaultMetadata
+            {
+                AppName = "STORM KEYS",
+                SchemaVersion = "1.0.5",
+                CreatedAt = DateTimeOffset.UtcNow.AddDays(-45),
+                LastModifiedAt = DateTimeOffset.UtcNow,
+                DeviceName = Environment.MachineName,
+                EntryCount = 2
+            },
+            Entries = new List<KeyEntry>
+            {
+                new KeyEntry
+                {
+                    Title = "Гостевой Wi-Fi",
+                    Category = KeyCategory.Wifi,
+                    UsernameOrEmail = "Home_Guest_5G",
+                    SecretValue = "WelcomeGuest2026!",
+                    Notes = "Гостевая точка доступа"
+                },
+                new KeyEntry
+                {
+                    Title = "Новостной портал",
+                    Category = KeyCategory.Account,
+                    UsernameOrEmail = "reader@example.com",
+                    SecretValue = "NewsReader#9412",
+                    TargetAppOrUrl = "https://example.com"
+                }
+            }
+        };
+    }
+
+    private void PurgeExpiredTrashEntries()
+    {
+        if (CurrentContainer?.Entries == null) return;
+        var cutoff = DateTimeOffset.UtcNow.AddDays(-30);
+        CurrentContainer.Entries.RemoveAll(e => e.IsDeleted && e.DeletedAt.HasValue && e.DeletedAt.Value < cutoff);
+    }
+
     public Task LockVaultAsync()
     {
         _activeMasterPassword = string.Empty;
+        IsDecoySession = false;
         CurrentContainer = null;
         return Task.CompletedTask;
     }
@@ -180,10 +257,20 @@ public class VaultService : IVaultService
         if (CurrentContainer == null || string.IsNullOrEmpty(_activeMasterPassword))
             throw new InvalidOperationException("Хранилище заблокировано или не инициализировано.");
 
+        // В режиме приманки (Duress / Decoy) никогда не перезаписываем реальный файл хранилища!
+        if (IsDecoySession)
+        {
+            CurrentContainer.Metadata.LastModifiedAt = DateTimeOffset.UtcNow;
+            CurrentContainer.Metadata.EntryCount = CurrentContainer.Entries.Count;
+            return;
+        }
+
+        PurgeExpiredTrashEntries();
         CurrentContainer.Metadata.LastModifiedAt = DateTimeOffset.UtcNow;
         CurrentContainer.Metadata.EntryCount = CurrentContainer.Entries.Count;
 
-        byte[] encryptedBytes = await _cryptoService.EncryptVaultAsync(CurrentContainer, _activeMasterPassword);
+        string effectivePassword = _cryptoService.CombinePasswordWithKeyfile(_activeMasterPassword, Settings.KeyfilePath);
+        byte[] encryptedBytes = await _cryptoService.EncryptVaultAsync(CurrentContainer, effectivePassword);
 
         // Атомарное сохранение локального файла
         string targetPath = LocalVaultPath;
@@ -258,7 +345,7 @@ public class VaultService : IVaultService
 
     public async Task<bool> SyncWithCloudAsync()
     {
-        if (CurrentContainer == null || string.IsNullOrEmpty(_activeMasterPassword))
+        if (CurrentContainer == null || string.IsNullOrEmpty(_activeMasterPassword) || IsDecoySession)
             return false;
 
         if (string.IsNullOrWhiteSpace(Settings.CloudSyncFolderPath) || !Directory.Exists(Settings.CloudSyncFolderPath))
@@ -267,20 +354,18 @@ public class VaultService : IVaultService
         string cloudVaultFile = Path.Combine(Settings.CloudSyncFolderPath, "vault.stormdb");
         if (!File.Exists(cloudVaultFile))
         {
-            // Облачного файла еще нет — загружаем текущее состояние в облако
             await SaveVaultAsync();
             return true;
         }
 
         try
         {
-            // Читаем облачный файл и проверяем дату изменения
             byte[] cloudBytes = await File.ReadAllBytesAsync(cloudVaultFile);
-            var cloudContainer = await _cryptoService.DecryptVaultAsync(cloudBytes, _activeMasterPassword);
+            string effectivePassword = _cryptoService.CombinePasswordWithKeyfile(_activeMasterPassword, Settings.KeyfilePath);
+            var cloudContainer = await _cryptoService.DecryptVaultAsync(cloudBytes, effectivePassword);
 
             if (cloudContainer.Metadata.LastModifiedAt > CurrentContainer.Metadata.LastModifiedAt)
             {
-                // Облачная версия новее! Объединяем записи без потерь
                 var localDict = new Dictionary<Guid, KeyEntry>();
                 foreach (var entry in CurrentContainer.Entries)
                     localDict[entry.Id] = entry;
@@ -304,7 +389,6 @@ public class VaultService : IVaultService
             }
             else
             {
-                // Локальная версия новее или равна — обновляем облако
                 await SaveVaultAsync();
             }
 
@@ -328,5 +412,45 @@ public class VaultService : IVaultService
         string snapshotPath = Path.Combine(dir, $"vault_snapshot_{stamp}.stormdb.bak");
         File.Copy(LocalVaultPath, snapshotPath, overwrite: true);
         return snapshotPath;
+    }
+
+    public List<BackupSlotInfo> GetBackupSlotsSummary()
+    {
+        var list = new List<BackupSlotInfo>();
+        string targetPath = LocalVaultPath;
+        for (int slot = 1; slot <= 3; slot++)
+        {
+            string bakPath = $"{targetPath}.bak{slot}";
+            if (File.Exists(bakPath))
+            {
+                var fi = new FileInfo(bakPath);
+                list.Add(new BackupSlotInfo(slot, bakPath, fi.LastWriteTime, fi.Length));
+            }
+        }
+        return list;
+    }
+
+    public async Task<bool> RestoreBackupSlotAsync(int slotNumber)
+    {
+        if (slotNumber < 1 || slotNumber > 3 || string.IsNullOrEmpty(_activeMasterPassword) || IsDecoySession)
+            return false;
+
+        string bakPath = $"{LocalVaultPath}.bak{slotNumber}";
+        if (!File.Exists(bakPath))
+            return false;
+
+        try
+        {
+            byte[] encrypted = await File.ReadAllBytesAsync(bakPath);
+            string effectivePassword = _cryptoService.CombinePasswordWithKeyfile(_activeMasterPassword, Settings.KeyfilePath);
+            var restoredContainer = await _cryptoService.DecryptVaultAsync(encrypted, effectivePassword);
+            CurrentContainer = restoredContainer;
+            await SaveVaultAsync();
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 }

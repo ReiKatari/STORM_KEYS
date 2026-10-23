@@ -77,7 +77,7 @@ public sealed class VolumetricButton : Button
 public sealed class InstallerForm : Form
 {
     private const string AppDisplayName = "STORM KEYS";
-    private const string AppVersion = "1.0.4";
+    private const string AppVersion = "1.0.5";
     private const string AppFolderName = "STORM KEYS";
     private const string ExeName = "StormKeys.exe";
     private const string IcoName = "app.ico";

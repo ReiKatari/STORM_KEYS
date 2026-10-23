@@ -28,6 +28,24 @@ public class PasswordHistoryItem
     public DateTimeOffset ChangedAt { get; set; } = DateTimeOffset.Now;
 }
 
+public class RecoveryCodeItem
+{
+    public string Code { get; set; } = string.Empty;
+    public bool IsUsed { get; set; }
+}
+
+public class EncryptedAttachment
+{
+    public string FileName { get; set; } = string.Empty;
+    public string ContentBase64 { get; set; } = string.Empty;
+    public long SizeBytes { get; set; }
+    public DateTimeOffset AttachedAt { get; set; } = DateTimeOffset.UtcNow;
+    [JsonIgnore]
+    public string Base64Data { get => ContentBase64; set => ContentBase64 = value; }
+    [JsonIgnore]
+    public DateTimeOffset AddedAt { get => AttachedAt; set => AttachedAt = value; }
+}
+
 public class IconOptionItem
 {
     public string Glyph { get; set; } = string.Empty;
@@ -183,6 +201,175 @@ public partial class KeyEntry : ObservableObject
 
     // История предыдущих паролей
     public List<PasswordHistoryItem> PasswordHistory { get; set; } = new();
+
+    // Настраиваемый макрос авто-ввода (по умолчанию: {USER}{TAB}{PASS}{ENTER})
+    public string AutoTypeSequence { get; set; } = "{USER}{TAB}{PASS}{ENTER}";
+    [JsonIgnore]
+    public string EffectiveAutoTypeSequence => string.IsNullOrWhiteSpace(AutoTypeSequence) ? "{USER}{TAB}{PASS}{ENTER}" : AutoTypeSequence;
+
+    // Одноразовые резервные коды восстановления 2FA (с учётом использованных)
+    public List<RecoveryCodeItem> RecoveryCodes { get; set; } = new();
+
+    [JsonIgnore]
+    public int ActiveRecoveryCodesCount => RecoveryCodes?.Count(c => !c.IsUsed && !string.IsNullOrWhiteSpace(c.Code)) ?? 0;
+
+    [JsonIgnore]
+    public Visibility HasRecoveryCodesVisibility => ActiveRecoveryCodesCount > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+    [JsonIgnore]
+    public string RecoveryCodesBadgeText => $"Резерв 2FA: {ActiveRecoveryCodesCount}";
+
+    [JsonIgnore]
+    public int RecoveryCodesCount => ActiveRecoveryCodesCount;
+    public string? ConsumeOneRecoveryCode() => ConsumeNextRecoveryCode();
+    public string? ConsumeNextRecoveryCode()
+    {
+        if (RecoveryCodes == null) return null;
+        var next = RecoveryCodes.FirstOrDefault(c => !c.IsUsed && !string.IsNullOrWhiteSpace(c.Code));
+        if (next == null) return null;
+        next.IsUsed = true;
+        OnPropertyChanged(nameof(ActiveRecoveryCodesCount));
+        OnPropertyChanged(nameof(HasRecoveryCodesVisibility));
+        OnPropertyChanged(nameof(RecoveryCodesBadgeText));
+        return next.Code.Trim();
+    }
+
+    // Зашифрованные микро-вложения внутри карточки (.lic, .reg, .pem, .ppk, .cer, .txt)
+    public List<EncryptedAttachment> Attachments { get; set; } = new();
+
+    [JsonIgnore]
+    public int AttachmentsCount => Attachments?.Count ?? 0;
+    [JsonIgnore]
+    public bool HasAttachments => AttachmentsCount > 0;
+    [JsonIgnore]
+    public string AttachmentsBadgeText => $"📎 {AttachmentsCount}";
+
+    [JsonIgnore]
+    public Visibility HasAttachmentsVisibility => AttachmentsCount > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+    [JsonIgnore]
+    public string AttachmentsSummaryText => AttachmentsCount > 0
+        ? $"📎 Вложений: {AttachmentsCount} ({string.Join(", ", Attachments!.Select(a => a.FileName))})"
+        : "Вложений нет";
+
+    // Корзина удалённых записей (хранение 30 дней перед окончательной очисткой)
+    private bool _isDeleted;
+    public bool IsDeleted
+    {
+        get => _isDeleted;
+        set
+        {
+            if (SetProperty(ref _isDeleted, value))
+            {
+                OnPropertyChanged(nameof(DeletedBadgeVisibility));
+            }
+        }
+    }
+
+    public DateTimeOffset? DeletedAt { get; set; }
+
+    [JsonIgnore]
+    public Visibility DeletedBadgeVisibility => IsDeleted ? Visibility.Visible : Visibility.Collapsed;
+    [JsonIgnore]
+    public Visibility IsDeletedVisibility => DeletedBadgeVisibility;
+    [JsonIgnore]
+    public Visibility IsBankCardVisibility => Category == KeyCategory.BankCard ? Visibility.Visible : Visibility.Collapsed;
+    [JsonIgnore]
+    public Visibility IsWifiVisibility => HasWifiQuickActionsVisibility;
+
+    // Умные быстрые поля для банковских карт (Срок ММ/ГГ, CVV, PIN)
+    [JsonIgnore]
+    public string CardExpiryValue => GetCustomFieldValue("Срок", "Expiry", "ММ/ГГ", "Valid");
+
+    [JsonIgnore]
+    public string CardCvvValue => GetCustomFieldValue("CVV", "CVC", "Код");
+
+    [JsonIgnore]
+    public string CardPinValue => GetCustomFieldValue("PIN", "ПИН");
+
+    [JsonIgnore]
+    public Visibility HasBankCardQuickActionsVisibility =>
+        (Category == KeyCategory.BankCard && (!string.IsNullOrEmpty(CardCvvValue) || !string.IsNullOrEmpty(CardPinValue) || !string.IsNullOrEmpty(CardExpiryValue)))
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+    // Умные быстрые поля для Wi-Fi (SSID + генерация строки QR-кода WIFI:S:...;T:WPA;P:...;;)
+    [JsonIgnore]
+    public string WifiSsidValue
+    {
+        get
+        {
+            string fromField = GetCustomFieldValue("SSID", "Сеть", "Имя сети");
+            if (!string.IsNullOrWhiteSpace(fromField)) return fromField;
+            if (!string.IsNullOrWhiteSpace(UsernameOrEmail)) return UsernameOrEmail.Trim();
+            return Title.Trim();
+        }
+    }
+
+    [JsonIgnore]
+    public Visibility HasWifiQuickActionsVisibility => Category == KeyCategory.Wifi ? Visibility.Visible : Visibility.Collapsed;
+
+    public string GetWifiQrPayload()
+    {
+        string ssid = WifiSsidValue.Replace(";", "\\;").Replace(":", "\\:");
+        string pass = (SecretValue ?? string.Empty).Replace(";", "\\;").Replace(":", "\\:");
+        string auth = GetCustomFieldValue("Защита", "Security", "Auth");
+        string type = (!string.IsNullOrWhiteSpace(auth) && auth.Contains("WEP", StringComparison.OrdinalIgnoreCase)) ? "WEP" : "WPA";
+        if (string.IsNullOrEmpty(pass)) type = "nopass";
+        return $"WIFI:S:{ssid};T:{type};P:{pass};;";
+    }
+
+    private string GetCustomFieldValue(params string[] keyFragments)
+    {
+        if (CustomFields == null || CustomFields.Count == 0) return string.Empty;
+        foreach (var kv in CustomFields)
+        {
+            foreach (var frag in keyFragments)
+            {
+                if (kv.Key.Contains(frag, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(kv.Value))
+                    return kv.Value.Trim();
+            }
+        }
+        return string.Empty;
+    }
+
+    /// <summary>
+    /// Проверяет, подходит ли запись к текущему активному окну браузера или программы.
+    /// </summary>
+    public bool MatchesActiveWindow(string? windowTitle, string? processName)
+    {
+        if (IsDeleted) return false;
+        if (string.IsNullOrWhiteSpace(windowTitle) && string.IsNullOrWhiteSpace(processName)) return false;
+
+        string winTitle = (windowTitle ?? string.Empty).ToLowerInvariant();
+        string proc = (processName ?? string.Empty).ToLowerInvariant();
+
+        if (!string.IsNullOrWhiteSpace(Title) && Title.Length >= 3 && winTitle.Contains(Title.Trim().ToLowerInvariant()))
+            return true;
+
+        if (!string.IsNullOrWhiteSpace(TargetAppOrUrl))
+        {
+            string target = TargetAppOrUrl.Trim().ToLowerInvariant();
+            string exeName = Path.GetFileNameWithoutExtension(target);
+            if (!string.IsNullOrWhiteSpace(exeName) && exeName.Length >= 3)
+            {
+                if (proc.Equals(exeName, StringComparison.OrdinalIgnoreCase) || winTitle.Contains(exeName))
+                    return true;
+            }
+
+            if (WebsiteLaunchUri != null && !string.IsNullOrWhiteSpace(WebsiteLaunchUri.Host))
+            {
+                string host = WebsiteLaunchUri.Host.ToLowerInvariant();
+                if (host.StartsWith("www.")) host = host[4..];
+                int dotIdx = host.IndexOf('.');
+                string domainCore = dotIdx > 0 ? host[..dotIdx] : host;
+                if (domainCore.Length >= 3 && winTitle.Contains(domainCore))
+                    return true;
+            }
+        }
+
+        return false;
+    }
 
     // Двухфакторная аутентификация (TOTP / 2FA)
     private string _totpSecret = string.Empty;
@@ -490,9 +677,18 @@ public partial class KeyEntry : ObservableObject
             ExpirationDate = ExpirationDate,
             Notes = Notes,
             TotpSecret = TotpSecret,
+            AutoTypeSequence = AutoTypeSequence,
             IsFavorite = IsFavorite,
             Tags = new List<string>(Tags ?? new()),
             CustomFields = new Dictionary<string, string>(CustomFields ?? new()),
+            RecoveryCodes = RecoveryCodes?.Select(r => new RecoveryCodeItem { Code = r.Code, IsUsed = r.IsUsed }).ToList() ?? new(),
+            Attachments = Attachments?.Select(a => new EncryptedAttachment
+            {
+                FileName = a.FileName,
+                ContentBase64 = a.ContentBase64,
+                SizeBytes = a.SizeBytes,
+                AttachedAt = a.AttachedAt
+            }).ToList() ?? new(),
             CreatedAt = DateTimeOffset.UtcNow,
             ModifiedAt = DateTimeOffset.UtcNow
         };

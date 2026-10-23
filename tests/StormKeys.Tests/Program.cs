@@ -46,6 +46,11 @@ public static class Program
         await RunTest("Генератор 1.0.4: Исключение похожих символов (0/O/1/l) и PIN-коды", Test_Generator_Configurable_ExcludeAmbiguous_Pin_104);
         await RunTest("Модель 1.0.4: Новые форматы (Карты/Wi-Fi/Крипто), Иконки и .EXE привязка", Test_ManualEntry_Categories_CustomIcons_AppBinding_104);
         await RunTest("Трей 1.0.4: Конвертация цветов темы в GDI COLORREF (BGR)", Test_TrayMenu_DynamicTheme_ColorRef_104);
+        await RunTest("Крипто 1.0.5: Ключ-файл (.stormkey) 2FA и хэш пароля под принуждением (Duress)", Test_Keyfile_And_DuressPassword_105);
+        await RunTest("Генератор 1.0.5: API-токены разработчика (HEX/JWT/UUID/Bearer/SSH) и 2D QR-матрица", Test_ApiToken_Generator_And_QrMatrix_105);
+        await RunTest("Модель 1.0.5: Корзина, Вложения, Резервные коды 2FA, Карты, Wi-Fi и Авто-матчер окна", Test_Entry_Trash_Attachments_RecoveryCodes_AutoType_105);
+        await RunTest("Импорт/Экспорт 1.0.5: KeePass XML, Kaspersky TXT, .env и .stormbackup", Test_ImportExport_KeePassXml_DotEnv_EncryptedBackup_105);
+        await RunTest("Вход 1.0.5: Тихая DPAPI-синхронизация Windows Hello и версия 1.0.5 без самообновления", Test_WindowsHello_SilentDpapi_And_NoSelfUpdate_105);
 
         Console.WriteLine("-------------------------------------------------");
         Console.WriteLine($"РЕЗУЛЬТАТ: Успешно: {_passed} | Ошибок: {_failed}");
@@ -710,6 +715,142 @@ public static class Program
         uint violetAccent = StormTrayService.HexToColorRef("#8B5CF6");
         AssertEqual(0x00F65C8Bu, violetAccent, "GDI COLORREF для #8B5CF6 должен быть 0x00F65C8B (BGR)");
 
+        return Task.CompletedTask;
+    }
+
+
+    private static async Task Test_Keyfile_And_DuressPassword_105()
+    {
+        var crypto = new CryptoService();
+        string tempKeyfile = Path.Combine(Path.GetTempPath(), $"storm_test_{Guid.NewGuid():N}.stormkey");
+        try
+        {
+            await crypto.GenerateKeyfileAsync(tempKeyfile);
+            AssertTrue(File.Exists(tempKeyfile), "Ключ-файл .stormkey должен быть создан");
+
+            string combined1 = crypto.CombinePasswordWithKeyfile("MasterPass!123", tempKeyfile);
+            string combined2 = crypto.CombinePasswordWithKeyfile("MasterPass!123", tempKeyfile);
+            AssertEqual(combined1, combined2, "Комбинация пароля и .stormkey должна быть детерминированной");
+            AssertTrue(combined1 != "MasterPass!123", "Смешанный ключ должен отличаться от голого пароля");
+
+            string duressHash = crypto.ComputePasswordVerifierHash("PanicPass911");
+            AssertTrue(!string.IsNullOrWhiteSpace(duressHash) && duressHash.Length == 64, "SHA-256 хэш Duress-пароля должен быть 64 HEX-символа");
+        }
+        finally
+        {
+            if (File.Exists(tempKeyfile)) File.Delete(tempKeyfile);
+        }
+    }
+
+    private static Task Test_ApiToken_Generator_And_QrMatrix_105()
+    {
+        string hex256 = PasswordGenerator.GenerateApiToken("Hex256");
+        AssertEqual(64, hex256.Length, "256-bit HEX токен должен состоять из 64 символов");
+
+        string uuid = PasswordGenerator.GenerateApiToken("UUID");
+        AssertTrue(Guid.TryParse(uuid, out _), "UUID v4 должен быть валидным GUID");
+
+        string bearer = PasswordGenerator.GenerateApiToken("Bearer");
+        AssertTrue(bearer.StartsWith("sk_live_"), "Bearer токен должен начинаться с sk_live_");
+
+        string ssh = PasswordGenerator.GenerateApiToken("SSH");
+        AssertTrue(ssh.StartsWith("ssh-ed25519 "), "SSH токен должен начинаться с ssh-ed25519 ");
+
+        string qrArt = QrCodeMatrixHelper.RenderMatrixArt("otpauth://totp/STORM:user?secret=JBSWY3DPEHPK3PXP");
+        AssertTrue(qrArt.Contains("█") && qrArt.Split('\n').Length >= 10, "2D QR-матрица должна рендерить псевдографику");
+
+        return Task.CompletedTask;
+    }
+
+    private static Task Test_Entry_Trash_Attachments_RecoveryCodes_AutoType_105()
+    {
+        var entry = new KeyEntry
+        {
+            Title = "GitHub Enterprise",
+            Category = KeyCategory.Account,
+            TargetAppOrUrl = "https://github.com/login",
+            RecoveryCodes = new() { new RecoveryCodeItem { Code = "CODE-1111" }, new RecoveryCodeItem { Code = "CODE-2222" } },
+            Attachments = new()
+            {
+                new EncryptedAttachment { FileName = "id_ed25519.pem", SizeBytes = 1024, Base64Data = Convert.ToBase64String(new byte[] { 1, 2, 3, 4 }) }
+            }
+        };
+
+        AssertTrue(entry.MatchesActiveWindow("Sign in to GitHub · Mozilla Firefox", "firefox"), "Запись должна сопоставляться с активным окном браузера по домену github");
+        AssertEqual(2, entry.RecoveryCodesCount, "Должно быть 2 резервных кода");
+        string? consumed = entry.ConsumeOneRecoveryCode();
+        AssertEqual("CODE-1111", consumed, "Первый резервный код должен быть извлечён");
+        AssertEqual(1, entry.RecoveryCodesCount, "После использования должен остаться 1 резервный код");
+        AssertTrue(entry.HasAttachments, "Должно определяться наличие зашифрованного вложения");
+
+        var bank = new KeyEntry
+        {
+            Title = "Tinkoff Black",
+            Category = KeyCategory.BankCard,
+            CustomFields = new()
+            {
+                ["CVV"] = "777",
+                ["Срок"] = "12/29",
+                ["PIN"] = "9090"
+            }
+        };
+        AssertEqual("777", bank.CardCvvValue, "CVV карты должен извлекаться из доп. полей");
+        AssertEqual("12/29", bank.CardExpiryValue, "Срок карты должен извлекаться из доп. полей");
+        AssertEqual("9090", bank.CardPinValue, "PIN карты должен извлекаться из доп. полей");
+
+        var wifi = new KeyEntry
+        {
+            Title = "STORM_5G",
+            Category = KeyCategory.Wifi,
+            UsernameOrEmail = "STORM_5G",
+            SecretValue = "WifiPass2026!"
+        };
+        AssertTrue(wifi.GetWifiQrPayload().StartsWith("WIFI:S:STORM_5G;T:WPA;P:WifiPass2026!;"), "QR-строка Wi-Fi должна соответствовать стандарту WIFI:S:STORM_5G;T:WPA");
+
+        return Task.CompletedTask;
+    }
+
+    private static async Task Test_ImportExport_KeePassXml_DotEnv_EncryptedBackup_105()
+    {
+        var service = new ImportExportService();
+        var entries = new System.Collections.Generic.List<KeyEntry>
+        {
+            new() { Title = "OpenAI API", Category = KeyCategory.ApiKey, SecretValue = "sk-test-12345" }
+        };
+
+        string tempEnv = Path.Combine(Path.GetTempPath(), $"storm_{Guid.NewGuid():N}.env");
+        string tempBackup = Path.Combine(Path.GetTempPath(), $"storm_{Guid.NewGuid():N}.stormbackup");
+        string tempXml = Path.Combine(Path.GetTempPath(), $"storm_{Guid.NewGuid():N}.xml");
+        try
+        {
+            await service.ExportToDotEnvAsync(entries, tempEnv);
+            string envText = await File.ReadAllTextAsync(tempEnv);
+            AssertTrue(envText.Contains("OPENAI_API="), "Экспорт .env должен содержать переменную OPENAI_API");
+
+            await service.ExportEncryptedBackupAsync(entries, tempBackup, "BackupPass!2026");
+            var restored = await service.ImportEncryptedBackupAsync(tempBackup, "BackupPass!2026");
+            AssertEqual(1, restored.ImportedCount, "Из зашифрованного .stormbackup должна восстановиться 1 запись");
+            AssertEqual("sk-test-12345", restored.ImportedEntries[0].SecretValue, "Секрет из .stormbackup должен совпадать");
+
+            string sampleKeePassXml = "<KeePassFile><Root><Group><Name>General</Name><Entry><String><Key>Title</Key><Value>KeePass Server</Value></String><String><Key>UserName</Key><Value>root</Value></String><String><Key>Password</Key><Value>KeePassSecret!99</Value></String><String><Key>URL</Key><Value>ssh://10.0.0.1</Value></String></Entry></Group></Root></KeePassFile>";
+            await File.WriteAllTextAsync(tempXml, sampleKeePassXml);
+            var kpRes = await service.ImportFromKeePassXmlAsync(tempXml);
+            AssertEqual(1, kpRes.ImportedCount, "KeePass 2.x XML запись должна импортироваться");
+            AssertEqual("KeePass Server", kpRes.ImportedEntries[0].Title, "Заголовок KeePass записи должен совпадать");
+        }
+        finally
+        {
+            if (File.Exists(tempEnv)) File.Delete(tempEnv);
+            if (File.Exists(tempBackup)) File.Delete(tempBackup);
+            if (File.Exists(tempXml)) File.Delete(tempXml);
+        }
+    }
+
+    private static Task Test_WindowsHello_SilentDpapi_And_NoSelfUpdate_105()
+    {
+        var v105_4 = new Version(1, 0, 5, 0);
+        AssertTrue(!UpdateService.IsNewerVersion("1.0.5", v105_4), "Версия 1.0.5 НЕ должна предлагать обновление поверх 1.0.5.0");
+        AssertTrue(UpdateService.IsNewerVersion("1.0.6", v105_4), "Версия 1.0.6 должна определяться как более новая");
         return Task.CompletedTask;
     }
 

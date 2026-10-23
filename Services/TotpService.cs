@@ -1,12 +1,15 @@
 using System;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 
 namespace StormKeys.Services;
 
 public interface ITotpService
 {
     string GenerateCode(string base32Secret, DateTimeOffset? timestamp = null);
+    Task<string> GetCodeWithSmartWaitAsync(string base32Secret, int thresholdSeconds = 3);
     int GetSecondsRemaining();
     double GetRemainingRatio();
     bool ValidateSecret(string base32Secret);
@@ -15,11 +18,56 @@ public interface ITotpService
     string FormatCode(string code);
     string GenerateOtpAuthUri(string secret, string accountName, string issuer = "STORM KEYS");
     bool TryParseOtpAuthInput(string? rawInput, out string cleanSecret, out string? issuer, out string? account);
+    bool TryExtractFromArbitraryText(string? rawText, out string cleanSecret, out string? issuer, out string? account);
 }
 
 public sealed class TotpService : ITotpService
 {
     private static readonly char[] Base32Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567".ToCharArray();
+
+    /// <summary>
+    /// Умное ожидание следующего 30-секундного окна 2FA: если до смены кода осталось &lt;= thresholdSeconds (по умолчанию 3 сек.),
+    /// автоматически дожидается генерации свежего кода, чтобы он не просрочился в момент вставки.
+    /// </summary>
+    public async Task<string> GetCodeWithSmartWaitAsync(string base32Secret, int thresholdSeconds = 3)
+    {
+        if (string.IsNullOrWhiteSpace(base32Secret))
+            return string.Empty;
+
+        int remaining = GetSecondsRemaining();
+        if (remaining > 0 && remaining <= thresholdSeconds)
+        {
+            await Task.Delay((remaining * 1000) + 150).ConfigureAwait(false);
+        }
+
+        return GenerateCode(base32Secret);
+    }
+
+    public bool TryExtractFromArbitraryText(string? rawText, out string cleanSecret, out string? issuer, out string? account)
+    {
+        cleanSecret = string.Empty;
+        issuer = null;
+        account = null;
+
+        if (string.IsNullOrWhiteSpace(rawText))
+            return false;
+
+        if (TryParseOtpAuthInput(rawText, out cleanSecret, out issuer, out account))
+            return true;
+
+        var otpMatch = Regex.Match(rawText, @"otpauth://[^\s""'<>]+", RegexOptions.IgnoreCase);
+        if (otpMatch.Success && TryParseOtpAuthInput(otpMatch.Value, out cleanSecret, out issuer, out account))
+            return true;
+
+        var b32Match = Regex.Match(rawText.ToUpperInvariant(), @"\b([A-Z2-7]{16,64})\b");
+        if (b32Match.Success && ValidateSecret(b32Match.Groups[1].Value))
+        {
+            cleanSecret = b32Match.Groups[1].Value;
+            return true;
+        }
+
+        return false;
+    }
 
     public string GenerateCode(string base32Secret, DateTimeOffset? timestamp = null)
     {

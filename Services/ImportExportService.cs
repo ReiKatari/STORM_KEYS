@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using System.Xml.Linq;
 using StormKeys.Models;
 
 namespace StormKeys.Services;
@@ -21,9 +23,13 @@ public interface IImportExportService
 {
     Task<ImportResult> ImportFromCsvAsync(string filePath);
     Task<ImportResult> ImportFromJsonAsync(string filePath);
+    Task<ImportResult> ImportFromKeePassXmlAsync(string filePath);
+    Task<ImportResult> ImportEncryptedBackupAsync(string filePath, string backupPassword);
     ImportResult ImportFromClipboardText(string text);
     Task ExportToCsvAsync(IEnumerable<KeyEntry> entries, string filePath);
     Task ExportToJsonAsync(IEnumerable<KeyEntry> entries, string filePath);
+    Task ExportToDotEnvAsync(IEnumerable<KeyEntry> entries, string filePath);
+    Task ExportEncryptedBackupAsync(IEnumerable<KeyEntry> entries, string filePath, string backupPassword);
     Task ExportEmergencyRecoveryKitAsync(IEnumerable<KeyEntry> entries, string filePath);
 }
 
@@ -34,6 +40,12 @@ public class ImportExportService : IImportExportService
         var result = new ImportResult();
         if (!File.Exists(filePath))
             return result;
+
+        // Если это .xml файл KeePass 2.x — парсим через XML-импортер
+        if (filePath.EndsWith(".xml", StringComparison.OrdinalIgnoreCase))
+        {
+            return await ImportFromKeePassXmlAsync(filePath);
+        }
 
         // Если это .env или .txt файл без CSV-заголовка, парсим через универсальный анализатор
         if (filePath.EndsWith(".env", StringComparison.OrdinalIgnoreCase) ||
@@ -397,6 +409,66 @@ public class ImportExportService : IImportExportService
             return result;
         }
 
+        // 5B. Проверяем многозаписный формат Kaspersky Password Manager (.txt блок: Website name / Login / Password, разделённый "---")
+        if (text.Contains("Website name:", StringComparison.OrdinalIgnoreCase) ||
+            text.Contains("Login name:", StringComparison.OrdinalIgnoreCase) ||
+            (text.Contains("---") && lines.Length >= 4))
+        {
+            var blocks = text.Split(new[] { "---", "===" }, StringSplitOptions.RemoveEmptyEntries);
+            if (blocks.Length >= 2)
+            {
+                var kpmEntries = new List<KeyEntry>();
+                foreach (var block in blocks)
+                {
+                    string bTitle = "";
+                    string bUser = "";
+                    string bPass = "";
+                    string bUrl = "";
+                    string bNotes = "";
+                    foreach (var bl in block.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries))
+                    {
+                        int cIdx = bl.IndexOf(':');
+                        if (cIdx <= 0) continue;
+                        string k = bl[..cIdx].Trim().ToLowerInvariant();
+                        string v = bl[(cIdx + 1)..].Trim();
+                        if (string.IsNullOrEmpty(v)) continue;
+
+                        if (k.Contains("website name") || k.Contains("application") || k.Contains("account name") || k == "title" || k == "название")
+                            bTitle = v;
+                        else if (k.Contains("website url") || k == "url" || k == "сайт")
+                            bUrl = v;
+                        else if (k.Contains("login") || k.Contains("user") || k.Contains("email") || k == "логин")
+                            bUser = v;
+                        else if (k.Contains("password") || k.Contains("пароль"))
+                            bPass = v;
+                        else if (k.Contains("comment") || k.Contains("note"))
+                            bNotes = v;
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(bUser) || !string.IsNullOrWhiteSpace(bPass))
+                    {
+                        kpmEntries.Add(new KeyEntry
+                        {
+                            Title = string.IsNullOrWhiteSpace(bTitle) ? (string.IsNullOrWhiteSpace(bUrl) ? "Запись Kaspersky" : CleanUrlToTitle(bUrl)) : bTitle,
+                            UsernameOrEmail = bUser,
+                            SecretValue = bPass,
+                            TargetAppOrUrl = bUrl,
+                            Notes = bNotes,
+                            Category = KeyCategory.Account
+                        });
+                    }
+                }
+
+                if (kpmEntries.Count > 0)
+                {
+                    result.FormatDetected = "Kaspersky Password Manager (.txt)";
+                    result.ImportedEntries.AddRange(kpmEntries);
+                    result.ImportedCount = kpmEntries.Count;
+                    return result;
+                }
+            }
+        }
+
         // 6. Проверяем парсинг пар "Key: Value" или "login:password"
         string title = "Запись из буфера";
         string user = "";
@@ -542,6 +614,169 @@ public class ImportExportService : IImportExportService
         var options = new JsonSerializerOptions { WriteIndented = true };
         string json = JsonSerializer.Serialize(entries, options);
         await File.WriteAllTextAsync(filePath, json, Encoding.UTF8);
+    }
+
+    public async Task ExportToDotEnvAsync(IEnumerable<KeyEntry> entries, string filePath)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("# =========================================================================");
+        sb.AppendLine($"# STORM KEYS — Экспорт переменных окружения и API-секретов (.env)");
+        sb.AppendLine($"# Сгенерировано (UTC): {DateTimeOffset.UtcNow:yyyy-MM-dd HH:mm:ss}");
+        sb.AppendLine("# =========================================================================");
+        sb.AppendLine();
+
+        var usedKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var e in entries.Where(x => !x.IsDeleted && !string.IsNullOrWhiteSpace(x.SecretValue)))
+        {
+            string rawName = !string.IsNullOrWhiteSpace(e.Title) ? e.Title : e.UsernameOrEmail;
+            string envKey = Regex.Replace(rawName.ToUpperInvariant(), @"[^A-Z0-9_]+", "_").Trim('_');
+            if (string.IsNullOrWhiteSpace(envKey) || char.IsDigit(envKey[0]))
+                envKey = "STORM_" + envKey;
+
+            string baseKey = envKey;
+            int suffix = 2;
+            while (!usedKeys.Add(envKey))
+            {
+                envKey = $"{baseKey}_{suffix++}";
+            }
+
+            if (!string.IsNullOrWhiteSpace(e.TargetAppOrUrl) || !string.IsNullOrWhiteSpace(e.UsernameOrEmail))
+            {
+                sb.AppendLine($"# {e.Title} ({e.CategoryDisplayName}) {e.UsernameOrEmail} {e.TargetAppOrUrl}".Trim());
+            }
+
+            string escapedVal = e.SecretValue.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\r", "").Replace("\n", "\\n");
+            sb.AppendLine($"{envKey}=\"{escapedVal}\"");
+        }
+
+        await File.WriteAllTextAsync(filePath, sb.ToString(), Encoding.UTF8);
+    }
+
+    public async Task ExportEncryptedBackupAsync(IEnumerable<KeyEntry> entries, string filePath, string backupPassword)
+    {
+        if (string.IsNullOrWhiteSpace(backupPassword))
+            throw new ArgumentException("Пароль резервного архива не может быть пустым.", nameof(backupPassword));
+
+        var list = entries.Where(e => !e.IsDeleted).ToList();
+        var container = new VaultContainer
+        {
+            Metadata = new VaultMetadata
+            {
+                AppName = "STORM KEYS BACKUP",
+                SchemaVersion = "1.0.5",
+                CreatedAt = DateTimeOffset.UtcNow,
+                LastModifiedAt = DateTimeOffset.UtcNow,
+                DeviceName = Environment.MachineName,
+                EntryCount = list.Count
+            },
+            Entries = list
+        };
+
+        var crypto = new CryptoService();
+        byte[] encrypted = await crypto.EncryptVaultAsync(container, backupPassword);
+        await File.WriteAllBytesAsync(filePath, encrypted);
+    }
+
+    public async Task<ImportResult> ImportEncryptedBackupAsync(string filePath, string backupPassword)
+    {
+        var result = new ImportResult { FormatDetected = "Зашифрованный архив (.stormbackup)" };
+        if (!File.Exists(filePath) || string.IsNullOrWhiteSpace(backupPassword))
+            return result;
+
+        var crypto = new CryptoService();
+        byte[] encrypted = await File.ReadAllBytesAsync(filePath);
+        var container = await crypto.DecryptVaultAsync(encrypted, backupPassword);
+        if (container?.Entries != null)
+        {
+            foreach (var entry in container.Entries)
+            {
+                entry.Id = Guid.NewGuid();
+                result.ImportedEntries.Add(entry);
+                result.ImportedCount++;
+            }
+        }
+        return result;
+    }
+
+    public async Task<ImportResult> ImportFromKeePassXmlAsync(string filePath)
+    {
+        var result = new ImportResult { FormatDetected = "KeePass 2.x XML (.xml)" };
+        if (!File.Exists(filePath))
+            return result;
+
+        string xmlContent = await File.ReadAllTextAsync(filePath, Encoding.UTF8);
+        var doc = XDocument.Parse(xmlContent);
+
+        foreach (var entryElem in doc.Descendants().Where(x => x.Name.LocalName.Equals("Entry", StringComparison.OrdinalIgnoreCase)))
+        {
+            // Пропускаем записи истории внутри <History><Entry>
+            if (entryElem.Parent != null && entryElem.Parent.Name.LocalName.Equals("History", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            string title = "";
+            string user = "";
+            string pass = "";
+            string url = "";
+            string notes = "";
+            string totp = "";
+            var custom = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var strElem in entryElem.Elements().Where(x => x.Name.LocalName.Equals("String", StringComparison.OrdinalIgnoreCase)))
+            {
+                string key = strElem.Elements().FirstOrDefault(x => x.Name.LocalName.Equals("Key", StringComparison.OrdinalIgnoreCase))?.Value?.Trim() ?? "";
+                string val = strElem.Elements().FirstOrDefault(x => x.Name.LocalName.Equals("Value", StringComparison.OrdinalIgnoreCase))?.Value ?? "";
+                if (string.IsNullOrEmpty(key)) continue;
+
+                switch (key.ToLowerInvariant())
+                {
+                    case "title":
+                        title = val;
+                        break;
+                    case "username":
+                        user = val;
+                        break;
+                    case "password":
+                        pass = val;
+                        break;
+                    case "url":
+                        url = val;
+                        break;
+                    case "notes":
+                        notes = val;
+                        break;
+                    case "otp":
+                    case "totp":
+                    case "timeotp-secret-base32":
+                        totp = val;
+                        break;
+                    default:
+                        if (!string.IsNullOrWhiteSpace(val))
+                            custom[key] = val;
+                        break;
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(title) || !string.IsNullOrWhiteSpace(user) || !string.IsNullOrWhiteSpace(pass))
+            {
+                result.ImportedEntries.Add(new KeyEntry
+                {
+                    Title = string.IsNullOrWhiteSpace(title) ? (string.IsNullOrWhiteSpace(url) ? "KeePass Запись" : CleanUrlToTitle(url)) : title,
+                    UsernameOrEmail = user,
+                    SecretValue = pass,
+                    TargetAppOrUrl = url,
+                    Notes = notes,
+                    TotpSecret = totp,
+                    CustomFields = custom,
+                    Category = KeyCategory.Account,
+                    CreatedAt = DateTimeOffset.UtcNow,
+                    ModifiedAt = DateTimeOffset.UtcNow
+                });
+                result.ImportedCount++;
+            }
+        }
+
+        return result;
     }
 
     private static string? GetPropString(JsonElement elem, params string[] propNames)
