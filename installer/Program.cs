@@ -77,7 +77,7 @@ public sealed class VolumetricButton : Button
 public sealed class InstallerForm : Form
 {
     private const string AppDisplayName = "STORM KEYS";
-    private const string AppVersion = "1.0.5";
+    private const string AppVersion = "1.0.6";
     private const string AppFolderName = "STORM KEYS";
     private const string ExeName = "StormKeys.exe";
     private const string IcoName = "app.ico";
@@ -115,8 +115,8 @@ public sealed class InstallerForm : Form
     private Color currentAccent = Color.FromArgb(139, 92, 246);
     private string currentLang = "ru";
 
-    [DllImport("shell32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-    private static extern int SetCurrentProcessExplicitAppUserModelID(string appID);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool DeleteFileW(string lpFileName);
 
     [DllImport("dwmapi.dll", PreserveSig = true)]
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
@@ -339,7 +339,13 @@ public sealed class InstallerForm : Form
 
     public InstallerForm()
     {
-        try { SetCurrentProcessExplicitAppUserModelID("STORM.KEYS.INSTALLER"); } catch { }
+        try
+        {
+            var selfPath = Environment.ProcessPath;
+            if (!string.IsNullOrEmpty(selfPath))
+                DeleteFileW(selfPath + ":Zone.Identifier");
+        }
+        catch { }
         LoadEmbeddedIcon();
         InitializeComponent();
         DetectAndApplyDefaultLanguage();
@@ -999,12 +1005,15 @@ public sealed class InstallerForm : Form
                 CreateShortcut(Path.Combine(desktop, $"{AppDisplayName}.lnk"), targetExe, targetIco, $"{AppDisplayName} {AppVersion}");
             }
 
+            try { DeleteFileW(targetExe + ":Zone.Identifier"); } catch { }
+
             if (chkStartMenu.Checked)
             {
                 string programs = Environment.GetFolderPath(Environment.SpecialFolder.Programs);
                 string startDir = Path.Combine(programs, AppFolderName);
                 Directory.CreateDirectory(startDir);
-                CreateShortcut(Path.Combine(startDir, $"{AppDisplayName}.lnk"), targetExe, targetIco, $"{AppDisplayName} {AppVersion}");
+                CreateShortcut(Path.Combine(programs, $"{AppDisplayName}.lnk"), targetExe, targetIco, AppDisplayName);
+                CreateShortcut(Path.Combine(startDir, $"{AppDisplayName}.lnk"), targetExe, targetIco, AppDisplayName);
             }
 
             // Регистрация в реестре Windows (Установленные приложения / DisplayIcon)
@@ -1035,8 +1044,8 @@ public sealed class InstallerForm : Form
             {
                 Process.Start(new ProcessStartInfo
                 {
-                    FileName = targetExe,
-                    WorkingDirectory = targetDir,
+                    FileName = "explorer.exe",
+                    Arguments = $"\"{targetExe}\"",
                     UseShellExecute = true
                 });
                 await Task.Delay(500);

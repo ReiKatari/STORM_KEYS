@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -31,6 +32,7 @@ public interface IImportExportService
     Task ExportToDotEnvAsync(IEnumerable<KeyEntry> entries, string filePath);
     Task ExportEncryptedBackupAsync(IEnumerable<KeyEntry> entries, string filePath, string backupPassword);
     Task ExportEmergencyRecoveryKitAsync(IEnumerable<KeyEntry> entries, string filePath);
+    Task ExportToPrintableHtmlAsync(IEnumerable<KeyEntry> entries, string filePath);
 }
 
 public class ImportExportService : IImportExportService
@@ -279,6 +281,18 @@ public class ImportExportService : IImportExportService
             });
             result.ImportedCount++;
             return result;
+        }
+
+        if (text.Trim().StartsWith("stormshare://", StringComparison.OrdinalIgnoreCase))
+        {
+            var shared = TryDecodeSecureShareToken(text.Trim(), "STORM");
+            if (shared != null)
+            {
+                result.FormatDetected = "STORM Secure Share Token (AES-256-GCM)";
+                result.ImportedEntries.Add(shared);
+                result.ImportedCount = 1;
+                return result;
+            }
         }
 
         string[] lines = text.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
@@ -787,6 +801,119 @@ public class ImportExportService : IImportExportService
                 return val.GetString();
         }
         return null;
+    }
+
+    public static string CreateSecureShareToken(KeyEntry entry, string passphrase = "STORM")
+    {
+        var clone = entry.Clone();
+        clone.Title = entry.Title;
+        clone.UsageCount = 0;
+        clone.PasswordHistory = new();
+        var jsonBytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(clone));
+
+        byte[] salt = RandomNumberGenerator.GetBytes(16);
+        byte[] nonce = RandomNumberGenerator.GetBytes(12);
+        byte[] tag = new byte[16];
+        byte[] cipher = new byte[jsonBytes.Length];
+
+        byte[] key = Rfc2898DeriveBytes.Pbkdf2(
+            Encoding.UTF8.GetBytes(string.IsNullOrWhiteSpace(passphrase) ? "STORM" : passphrase),
+            salt,
+            100_000,
+            HashAlgorithmName.SHA256,
+            32);
+
+        using (var aes = new AesGcm(key, 16))
+        {
+            aes.Encrypt(nonce, jsonBytes, cipher, tag);
+        }
+
+        byte[] payload = new byte[16 + 12 + 16 + cipher.Length];
+        Buffer.BlockCopy(salt, 0, payload, 0, 16);
+        Buffer.BlockCopy(nonce, 0, payload, 16, 12);
+        Buffer.BlockCopy(tag, 0, payload, 28, 16);
+        Buffer.BlockCopy(cipher, 0, payload, 44, cipher.Length);
+
+        return "stormshare://" + Convert.ToBase64String(payload);
+    }
+
+    public static KeyEntry? TryDecodeSecureShareToken(string? tokenText, string passphrase = "STORM")
+    {
+        if (string.IsNullOrWhiteSpace(tokenText)) return null;
+        var trimmed = tokenText.Trim();
+        if (!trimmed.StartsWith("stormshare://", StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        try
+        {
+            string b64 = trimmed["stormshare://".Length..].Trim();
+            byte[] payload = Convert.FromBase64String(b64);
+            if (payload.Length <= 44) return null;
+
+            byte[] salt = payload[..16];
+            byte[] nonce = payload[16..28];
+            byte[] tag = payload[28..44];
+            byte[] cipher = payload[44..];
+            byte[] plain = new byte[cipher.Length];
+
+            byte[] key = Rfc2898DeriveBytes.Pbkdf2(
+                Encoding.UTF8.GetBytes(string.IsNullOrWhiteSpace(passphrase) ? "STORM" : passphrase),
+                salt,
+                100_000,
+                HashAlgorithmName.SHA256,
+                32);
+
+            using (var aes = new AesGcm(key, 16))
+            {
+                aes.Decrypt(nonce, cipher, tag, plain);
+            }
+
+            var entry = JsonSerializer.Deserialize<KeyEntry>(Encoding.UTF8.GetString(plain));
+            if (entry != null)
+            {
+                entry.Id = Guid.NewGuid();
+                entry.ModifiedAt = DateTimeOffset.UtcNow;
+            }
+            return entry;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public async Task ExportToPrintableHtmlAsync(IEnumerable<KeyEntry> entries, string filePath)
+    {
+        var list = entries.ToList();
+        var sb = new StringBuilder();
+        sb.AppendLine("<!DOCTYPE html>");
+        sb.AppendLine("<html lang=\"ru\"><head><meta charset=\"UTF-8\">");
+        sb.AppendLine("<title>STORM KEYS — Резервный отчёт сейфа</title>");
+        sb.AppendLine("<style>");
+        sb.AppendLine("body{font-family:'Segoe UI',system-ui,sans-serif;background:#0B0E17;color:#F8FAFC;margin:24px;}");
+        sb.AppendLine("h1{color:#00F0FF;letter-spacing:1.5px;margin-bottom:4px;}");
+        sb.AppendLine(".meta{color:#94A3B8;font-size:13px;margin-bottom:20px;}");
+        sb.AppendLine("table{width:100%;border-collapse:collapse;background:#131826;border-radius:10px;overflow:hidden;}");
+        sb.AppendLine("th,td{padding:10px 12px;border-bottom:1px solid #1E293B;text-align:left;font-size:13px;word-break:break-all;}");
+        sb.AppendLine("th{background:#1E293B;color:#38BDF8;font-weight:700;}");
+        sb.AppendLine("code{font-family:Consolas,monospace;color:#A7F3D0;background:#0F172A;padding:2px 6px;border-radius:4px;}");
+        sb.AppendLine("@media print{body{background:#fff;color:#000;}table{background:#fff;}th{background:#eee;color:#000;}code{background:#f3f4f6;color:#111;}}");
+        sb.AppendLine("</style></head><body>");
+        sb.AppendLine("<h1>STORM KEYS — РЕЗЕРВНЫЙ ПАСПОРТ СЕЙФА</h1>");
+        sb.AppendLine($"<div class=\"meta\">Сформировано: {DateTime.Now:dd.MM.yyyy HH:mm} • Всего записей: {list.Count} • Храните в защищённом месте</div>");
+        sb.AppendLine("<table><thead><tr><th>Сервис</th><th>Категория</th><th>Логин / ID</th><th>Пароль / Ключ</th><th>URL / Приложение</th><th>2FA / Теги</th></tr></thead><tbody>");
+        foreach (var e in list)
+        {
+            string svc = System.Net.WebUtility.HtmlEncode(e.Title);
+            string cat = System.Net.WebUtility.HtmlEncode(e.CategoryDisplayName);
+            string usr = System.Net.WebUtility.HtmlEncode(e.UsernameOrEmail);
+            string sec = System.Net.WebUtility.HtmlEncode(e.SecretValue);
+            string url = System.Net.WebUtility.HtmlEncode(e.TargetAppOrUrl);
+            string extra = System.Net.WebUtility.HtmlEncode($"{(e.HasTotp ? "2FA " : "")}{e.Tags}");
+            sb.AppendLine($"<tr><td><b>{svc}</b></td><td>{cat}</td><td>{usr}</td><td><code>{sec}</code></td><td>{url}</td><td>{extra}</td></tr>");
+        }
+        sb.AppendLine("</tbody></table></body></html>");
+        await File.WriteAllTextAsync(filePath, sb.ToString(), new UTF8Encoding(false));
     }
 
     private static string EscapeCsv(string text)

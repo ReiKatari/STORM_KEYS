@@ -24,8 +24,20 @@ public sealed partial class MainWindow : Window
 
     private delegate IntPtr WndProcDelegate(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
 
-    [DllImport("shell32.dll", SetLastError = true)]
-    private static extern int SetCurrentProcessExplicitAppUserModelID([MarshalAs(UnmanagedType.LPWStr)] string AppID);
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    private static extern int SHCreateItemFromParsingName(string pszPath, IntPtr pbc, ref Guid riid, out IntPtr ppv);
+
+    [DllImport("shell32.dll")]
+    private static extern int SHGetIDListFromObject(IntPtr punk, out IntPtr ppidl);
+
+    [DllImport("shell32.dll")]
+    private static extern void ILFree(IntPtr pidl);
+
+    [DllImport("shell32.dll")]
+    private static extern void SHChangeNotify(int wEventId, uint uFlags, IntPtr dwItem1, IntPtr dwItem2);
+
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private delegate int ModifyPinnedDelegate(IntPtr thisPtr, IntPtr pidlOld, IntPtr pidlNew, int caller);
 
     [DllImport("user32.dll", CharSet = CharSet.Auto)]
     private static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
@@ -79,20 +91,15 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         Instance = this;
-
-        try
-        {
-            SetCurrentProcessExplicitAppUserModelID("STORM.TEAM.STORM.KEYS");
-        }
-        catch { }
+        EnsureStormKeysTaskbarIdentity();
 
         InitializeComponent();
 
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
 
-        Title = "STORM KEYS 1.0.5";
-        AppWindow.Title = "STORM KEYS 1.0.5";
+        Title = "STORM KEYS 1.0.6";
+        AppWindow.Title = "STORM KEYS 1.0.6";
 
         // Получаем дескриптор Win32 окна
         _hWnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
@@ -294,6 +301,84 @@ public sealed partial class MainWindow : Window
         {
             page.ViewModel.IsAboutDialogVisible = true;
         }
+    }
+
+    private static void EnsureStormKeysTaskbarIdentity()
+    {
+        try
+        {
+            var exePath = Environment.ProcessPath;
+            if (string.IsNullOrWhiteSpace(exePath) || !File.Exists(exePath)) return;
+
+            using (var key = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(
+                @"Software\Classes\Local Settings\Software\Microsoft\Windows\Shell\MuiCache"))
+            {
+                key?.SetValue($"{exePath}.FriendlyAppName", "STORM KEYS");
+                key?.SetValue($"{exePath}.ApplicationCompany", "STORM TEAM");
+            }
+
+            var startMenuRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                @"Microsoft\Windows\Start Menu\Programs");
+            var rootShortcut = Path.Combine(startMenuRoot, "STORM KEYS.lnk");
+            if (!File.Exists(rootShortcut))
+            {
+                var shellType = Type.GetTypeFromProgID("WScript.Shell");
+                if (shellType != null)
+                {
+                    dynamic shell = Activator.CreateInstance(shellType)!;
+                    var sc = shell.CreateShortcut(rootShortcut);
+                    sc.TargetPath = exePath;
+                    sc.WorkingDirectory = Path.GetDirectoryName(exePath);
+                    sc.Description = "STORM KEYS";
+                    sc.IconLocation = $"{exePath},0";
+                    sc.Save();
+                }
+            }
+
+            var pinnedDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                @"Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar");
+            var oldLnk = Path.Combine(pinnedDir, "StormKeys.lnk");
+            var newLnk = Path.Combine(pinnedDir, "STORM KEYS.lnk");
+            if (File.Exists(oldLnk))
+            {
+                File.Copy(oldLnk, newLnk, true);
+                Guid clsidPin = new("90AA3A4E-1CBA-4233-B8BB-535773D48449");
+                Guid iidPinned3 = new("0DD79AE2-D156-45D4-9EEB-3B549769E940");
+                Guid iidShellItem = new("43826D1E-E718-42EE-BC55-A1E261C37BFE");
+                var pinType = Type.GetTypeFromCLSID(clsidPin);
+                if (pinType != null)
+                {
+                    object? obj = Activator.CreateInstance(pinType);
+                    if (obj != null)
+                    {
+                        IntPtr unk = Marshal.GetIUnknownForObject(obj);
+                        if (Marshal.QueryInterface(unk, ref iidPinned3, out IntPtr pPinned3) == 0)
+                        {
+                            SHCreateItemFromParsingName(oldLnk, IntPtr.Zero, ref iidShellItem, out IntPtr itemOld);
+                            SHCreateItemFromParsingName(newLnk, IntPtr.Zero, ref iidShellItem, out IntPtr itemNew);
+                            if (itemOld != IntPtr.Zero && itemNew != IntPtr.Zero)
+                            {
+                                SHGetIDListFromObject(itemOld, out IntPtr pidlOld);
+                                SHGetIDListFromObject(itemNew, out IntPtr pidlNew);
+                                IntPtr vtable = Marshal.ReadIntPtr(pPinned3);
+                                IntPtr modifyPtr = Marshal.ReadIntPtr(vtable, 16 * IntPtr.Size);
+                                var modify = Marshal.GetDelegateForFunctionPointer<ModifyPinnedDelegate>(modifyPtr);
+                                modify(pPinned3, pidlOld, pidlNew, 4);
+                                ILFree(pidlOld);
+                                ILFree(pidlNew);
+                            }
+                            if (itemOld != IntPtr.Zero) Marshal.Release(itemOld);
+                            if (itemNew != IntPtr.Zero) Marshal.Release(itemNew);
+                            Marshal.Release(pPinned3);
+                        }
+                        Marshal.Release(unk);
+                    }
+                }
+                try { if (File.Exists(oldLnk)) File.Delete(oldLnk); } catch { }
+                SHChangeNotify(0x08000000, 0x0000, IntPtr.Zero, IntPtr.Zero);
+            }
+        }
+        catch { }
     }
 
     public void ExitApplication()

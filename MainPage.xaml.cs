@@ -55,6 +55,7 @@ public sealed partial class MainPage : Page
     public List<string> SortOrderOptions { get; } = new()
     {
         "По приоритету срока",
+        "По частоте использования",
         "По алфавиту (А–Я)",
         "Сначала новые",
         "По надёжности",
@@ -183,6 +184,29 @@ public sealed partial class MainPage : Page
             if (!ViewModel.IsVaultLocked)
             {
                 _ = ViewModel.LockVaultCommand.ExecuteAsync(null);
+                e.Handled = true;
+                return;
+            }
+        }
+
+        if (isCtrlDown && e.Key == Windows.System.VirtualKey.B)
+        {
+            if (!ViewModel.IsVaultLocked && (ViewModel.SelectedEntry ?? ViewModel.FilteredEntries.FirstOrDefault()) is { } targetUser)
+            {
+                ViewModel.CopyUsernameCommand.Execute(targetUser);
+                e.Handled = true;
+                return;
+            }
+        }
+
+        var alt = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Menu);
+        bool isAltDown = (alt & Windows.UI.Core.CoreVirtualKeyStates.Down) == Windows.UI.Core.CoreVirtualKeyStates.Down;
+        if (isAltDown && !isCtrlDown && !ViewModel.IsVaultLocked)
+        {
+            int idx = (int)e.Key - (int)Windows.System.VirtualKey.Number1;
+            if (idx >= 0 && idx < 9 && idx < ViewModel.FilteredEntries.Count)
+            {
+                ViewModel.CopySecretCommand.Execute(ViewModel.FilteredEntries[idx]);
                 e.Handled = true;
                 return;
             }
@@ -982,6 +1006,32 @@ public sealed partial class MainPage : Page
         catch (Exception ex)
         {
             ViewModel.StatusMessage = $"Ошибка экспорта: {ex.Message}";
+        }
+    }
+
+    private async void ExportHtml_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var picker = new FileSavePicker();
+            if (MainWindow.Instance != null)
+            {
+                var hwnd = WindowNative.GetWindowHandle(MainWindow.Instance);
+                InitializeWithWindow.Initialize(picker, hwnd);
+            }
+            picker.SuggestedStartLocation = PickerLocationId.DocumentsLibrary;
+            picker.FileTypeChoices.Add("HTML Report", new List<string> { ".html" });
+            picker.SuggestedFileName = $"STORM_KEYS_Report_{DateTime.Now:yyyyMMdd}";
+
+            var file = await picker.PickSaveFileAsync();
+            if (file != null)
+            {
+                await ViewModel.ExportHtmlReportAsync(file.Path);
+            }
+        }
+        catch (Exception ex)
+        {
+            ViewModel.StatusMessage = $"Ошибка экспорта HTML: {ex.Message}";
         }
     }
 

@@ -105,6 +105,116 @@ public static class PasswordGenerator
         return sb.ToString();
     }
 
+    private static readonly string[] Bip39Words =
+    [
+        "abandon", "ability", "able", "about", "above", "absent", "absorb", "abstract",
+        "absurd", "abuse", "access", "accident", "account", "accuse", "achieve", "acid",
+        "acoustic", "acquire", "across", "act", "action", "actor", "actress", "actual",
+        "adapt", "add", "addict", "address", "adjust", "admit", "adult", "advance",
+        "advice", "aerobic", "affair", "afford", "afraid", "again", "age", "agent",
+        "agree", "ahead", "aim", "air", "airport", "aisle", "alarm", "album",
+        "alcohol", "alert", "alien", "all", "alley", "allow", "almost", "alone",
+        "alpha", "already", "also", "alter", "always", "amateur", "amazing", "among",
+        "amount", "amused", "analyst", "anchor", "ancient", "anger", "angle", "angry",
+        "animal", "ankle", "announce", "annual", "another", "answer", "antenna", "antique",
+        "anxiety", "any", "apart", "apology", "appear", "apple", "approve", "april",
+        "arch", "arctic", "area", "arena", "argue", "arm", "armed", "armor",
+        "army", "around", "arrange", "arrest", "arrive", "arrow", "art", "artefact",
+        "artist", "artwork", "ask", "aspect", "assault", "asset", "assist", "assume",
+        "asthma", "athlete", "atom", "attack", "attend", "attitude", "attract", "auction",
+        "audit", "august", "aunt", "author", "auto", "autumn", "average", "avocado",
+        "avoid", "awake", "aware", "away", "awesome", "awful", "awkward", "axis",
+        "balance", "balcony", "ball", "bamboo", "banana", "banner", "bar", "barely",
+        "bargain", "barrel", "base", "basic", "basket", "battle", "beach", "bean",
+        "beauty", "because", "become", "beef", "before", "begin", "behave", "behind",
+        "believe", "below", "belt", "bench", "benefit", "best", "betray", "better",
+        "between", "beyond", "bicycle", "bid", "bike", "bind", "biology", "bird",
+        "birth", "bitter", "black", "blade", "blame", "blanket", "blast", "bleak",
+        "bless", "blind", "blood", "blossom", "blouse", "blue", "blur", "blush",
+        "board", "boat", "body", "boil", "bomb", "bone", "bonus", "book",
+        "boost", "border", "boring", "borrow", "boss", "bottom", "bounce", "box"
+    ];
+
+    public static string GenerateSeedPhrase(int wordCount = 12)
+    {
+        wordCount = wordCount <= 12 ? 12 : 24;
+        var selected = new List<string>(wordCount);
+        for (int i = 0; i < wordCount; i++)
+        {
+            var word = Bip39Words[RandomNumberGenerator.GetInt32(Bip39Words.Length)].ToLowerInvariant();
+            selected.Add(word);
+        }
+        return string.Join(" ", selected);
+    }
+
+    public static string AnalyzePasswordAnatomy(string? password)
+    {
+        if (string.IsNullOrEmpty(password))
+            return "Длина: 0 • A-Z: 0 • a-z: 0 • 0-9: 0 • Симв: 0";
+
+        int upper = 0, lower = 0, digits = 0, symbols = 0;
+        var unique = new HashSet<char>();
+        foreach (char c in password)
+        {
+            unique.Add(c);
+            if (char.IsUpper(c)) upper++;
+            else if (char.IsLower(c)) lower++;
+            else if (char.IsDigit(c)) digits++;
+            else symbols++;
+        }
+
+        string lowerPwd = password.ToLowerInvariant();
+        bool hasSequence = lowerPwd.Contains("qwerty") || lowerPwd.Contains("12345") || lowerPwd.Contains("asdf") || lowerPwd.Contains("password") || lowerPwd.Contains("admin");
+        string seqNote = hasSequence ? " • ⚠️ Шаблон" : " • ✓ Без шаблонов";
+        return $"Длина: {password.Length} (уник. {unique.Count}) • A-Z: {upper} • a-z: {lower} • 0-9: {digits} • Симв: {symbols}{seqNote}";
+    }
+
+    public static bool ValidateLuhnChecksum(string? cardNumber)
+    {
+        if (string.IsNullOrWhiteSpace(cardNumber)) return false;
+        var digits = new List<int>();
+        foreach (char c in cardNumber)
+        {
+            if (char.IsDigit(c)) digits.Add(c - '0');
+            else if (c != ' ' && c != '-') return false;
+        }
+        if (digits.Count < 13 || digits.Count > 19) return false;
+
+        int sum = 0;
+        bool alternate = false;
+        for (int i = digits.Count - 1; i >= 0; i--)
+        {
+            int n = digits[i];
+            if (alternate)
+            {
+                n *= 2;
+                if (n > 9) n -= 9;
+            }
+            sum += n;
+            alternate = !alternate;
+        }
+        return (sum % 10) == 0;
+    }
+
+    public static string DetectCardBrand(string? cardNumber)
+    {
+        if (string.IsNullOrWhiteSpace(cardNumber)) return "Карта";
+        var clean = new StringBuilder();
+        foreach (char c in cardNumber)
+        {
+            if (char.IsDigit(c)) clean.Append(c);
+        }
+        string d = clean.ToString();
+        if (d.Length == 0) return "Карта";
+        if (d.StartsWith("2200") || d.StartsWith("2201") || d.StartsWith("2202") || d.StartsWith("2203") || d.StartsWith("2204")) return "МИР";
+        if (d.StartsWith('4')) return "Visa";
+        if (d.StartsWith("51") || d.StartsWith("52") || d.StartsWith("53") || d.StartsWith("54") || d.StartsWith("55") || d.StartsWith("222") || d.StartsWith("272")) return "MasterCard";
+        if (d.StartsWith("62")) return "UnionPay";
+        if (d.StartsWith("34") || d.StartsWith("37")) return "AmEx";
+        if (d.StartsWith("50") || d.StartsWith("56") || d.StartsWith("57") || d.StartsWith("58") || d.StartsWith("63") || d.StartsWith("67")) return "Maestro";
+        return "Карта";
+    }
+
     public static string GeneratePassphrase(int wordCount = 4, string separator = "-", bool includeDigitsAndSymbol = true)
     {
         if (wordCount < 2) wordCount = 2;

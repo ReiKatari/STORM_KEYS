@@ -20,17 +20,8 @@ public partial class App : Application
     public static IPwnedPasswordsService PwnedPasswordsService { get; private set; } = null!;
     public static MainViewModel ViewModel { get; private set; } = null!;
 
-    [System.Runtime.InteropServices.DllImport("shell32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode, SetLastError = true)]
-    private static extern int SetCurrentProcessExplicitAppUserModelID(string appID);
-
     public App()
     {
-        try
-        {
-            SetCurrentProcessExplicitAppUserModelID("STORM.KEYS");
-        }
-        catch { }
-
         InitializeComponent();
 
         // Инициализация сервисов экосистемы STORM KEYS

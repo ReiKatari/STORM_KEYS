@@ -264,6 +264,15 @@ public partial class MainViewModel : ObservableObject
     private int _expiringSoonCount;
 
     [ObservableProperty]
+    private int _missing2FaCount;
+
+    [ObservableProperty]
+    private string _passwordAnatomyText = "Длина: 0 • A-Z: 0 • a-z: 0 • 0-9: 0 • Симв: 0";
+
+    [ObservableProperty]
+    private string _cardLuhnLiveText = string.Empty;
+
+    [ObservableProperty]
     private int _expiredCount;
 
     [ObservableProperty]
@@ -779,6 +788,17 @@ public partial class MainViewModel : ObservableObject
         double bits = PasswordGenerator.CalculateEntropyBits(value);
         SecretEntropyText = $"{bits:F1} бит";
         SecretCrackTimeText = PasswordGenerator.EstimateCrackTime(value);
+        PasswordAnatomyText = PasswordGenerator.AnalyzePasswordAnatomy(value);
+        if (EditCategory == KeyCategory.BankCard && !string.IsNullOrWhiteSpace(value))
+        {
+            var brand = PasswordGenerator.DetectCardBrand(value);
+            var ok = PasswordGenerator.ValidateLuhnChecksum(value);
+            CardLuhnLiveText = ok ? $"💳 {brand} • Контрольная сумма Luhn верна" : $"💳 {brand} • Проверьте номер карты (Luhn)";
+        }
+        else
+        {
+            CardLuhnLiveText = string.Empty;
+        }
 
         // Умное автоопределение категории для лицензионных ключей XXXXX-XXXXX-...
         if (IsNewEntry && !string.IsNullOrWhiteSpace(value) && value.Length >= 19 && value.Split('-').Length >= 4 && EditCategory == KeyCategory.Account)
@@ -1125,6 +1145,7 @@ public partial class MainViewModel : ObservableObject
         TotalEntriesCount = allEntries.Count;
         IsVaultEmpty = TotalEntriesCount == 0 && ActiveFilterChip != "Trash";
         ExpiringSoonCount = allEntries.Count(e => e.IsExpiringSoon);
+        Missing2FaCount = allEntries.Count(e => e.IsMissing2FaForCriticalService);
         ExpiredCount = allEntries.Count(e => e.IsExpired);
         ActiveCount = allEntries.Count(e => !e.IsExpired);
         FavoritesCount = allEntries.Count(e => e.IsFavorite);
@@ -1186,6 +1207,7 @@ public partial class MainViewModel : ObservableObject
                 "Weak" => query.Where(e => !string.IsNullOrEmpty(e.SecretValue) && PasswordGenerator.EvaluateStrength(e.SecretValue).Score <= 2),
                 "Duplicates" => query.Where(e => !string.IsNullOrEmpty(e.SecretValue) && duplicateSecrets.Contains(e.SecretValue)),
                 "Expiring" => query.Where(e => e.IsExpiringSoon || e.IsExpired),
+                "Missing2FA" => query.Where(e => e.IsMissing2FaForCriticalService),
                 "Old" => query.Where(e => (DateTimeOffset.UtcNow - e.ModifiedAt).TotalDays > 365),
                 "Account" => query.Where(e => e.Category == KeyCategory.Account),
                 "License" => query.Where(e => e.Category == KeyCategory.License),
@@ -1232,6 +1254,7 @@ public partial class MainViewModel : ObservableObject
         // Многорежимная сортировка (Избранные всегда сверху)
         IEnumerable<KeyEntry> sorted = SelectedSortOrder switch
         {
+            "По частоте использования" => query.OrderByDescending(e => e.IsFavorite).ThenByDescending(e => e.UsageCount).ThenByDescending(e => e.ModifiedAt),
             "По алфавиту (А–Я)" => query.OrderByDescending(e => e.IsFavorite).ThenBy(e => e.Title),
             "Сначала новые" => query.OrderByDescending(e => e.IsFavorite).ThenByDescending(e => e.ModifiedAt),
             "По надёжности" => query.OrderByDescending(e => e.IsFavorite).ThenBy(e => e.EntropyBits).ThenBy(e => e.Title),
@@ -2342,6 +2365,125 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
+    public void GenerateSeed12()
+    {
+        EditSecret = PasswordGenerator.GenerateSeedPhrase(12);
+        StatusMessage = "Сгенерирована крипто-фраза BIP-39 (12 слов).";
+    }
+
+    [RelayCommand]
+    public void GenerateSeed24()
+    {
+        EditSecret = PasswordGenerator.GenerateSeedPhrase(24);
+        StatusMessage = "Сгенерирована крипто-фраза BIP-39 (24 слова).";
+    }
+
+    [RelayCommand]
+    public void CopySecureShareLink(KeyEntry? entry)
+    {
+        if (entry == null || _dispatcherQueue == null) return;
+        var token = ImportExportService.CreateSecureShareToken(entry, "STORM");
+        int timeout = _vaultService.Settings.ClearClipboardAfterSeconds ? _vaultService.Settings.ClipboardClearTimeout : 0;
+        ClipboardHelper.CopyToClipboard(token, _dispatcherQueue, timeout);
+        StatusMessage = $"Зашифрованный токен stormshare:// для «{entry.Title}» скопирован в буфер!";
+    }
+
+    [RelayCommand]
+    public async Task DeduplicateVaultAsync()
+    {
+        if (_vaultService.CurrentContainer == null) return;
+        var active = _vaultService.CurrentContainer.Entries.Where(e => !e.IsDeleted).ToList();
+        var groups = active
+            .GroupBy(e => $"{e.Title.Trim().ToLowerInvariant()}|{e.UsernameOrEmail.Trim().ToLowerInvariant()}|{e.SecretValue}")
+            .Where(g => g.Count() > 1)
+            .ToList();
+
+        int moved = 0;
+        foreach (var g in groups)
+        {
+            var ordered = g.OrderByDescending(e => e.IsFavorite).ThenByDescending(e => e.ModifiedAt).ToList();
+            foreach (var dup in ordered.Skip(1))
+            {
+                dup.IsDeleted = true;
+                dup.DeletedAt = DateTimeOffset.UtcNow;
+                moved++;
+            }
+        }
+
+        if (moved > 0)
+        {
+            await _vaultService.SaveVaultAsync();
+            RefreshFilteredList();
+            StatusMessage = $"Очистка дубликатов: перенесено в корзину {moved} записей.";
+        }
+        else
+        {
+            StatusMessage = "Полных дубликатов записей не обнаружено ✓";
+        }
+    }
+
+    [RelayCommand]
+    public async Task NormalizeUrlsAsync()
+    {
+        if (_vaultService.CurrentContainer == null) return;
+        int updated = 0;
+        foreach (var e in _vaultService.CurrentContainer.Entries.Where(x => !x.IsDeleted && !string.IsNullOrWhiteSpace(x.TargetAppOrUrl)))
+        {
+            var raw = e.TargetAppOrUrl.Trim();
+            if (raw.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) || raw.Contains('\\'))
+                continue;
+            if (!raw.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+                !raw.StartsWith("https://", StringComparison.OrdinalIgnoreCase) &&
+                !raw.StartsWith("ssh://", StringComparison.OrdinalIgnoreCase))
+            {
+                raw = "https://" + raw;
+            }
+            if (Uri.TryCreate(raw, UriKind.Absolute, out var uri))
+            {
+                var builder = new UriBuilder(uri)
+                {
+                    Scheme = uri.Scheme.ToLowerInvariant(),
+                    Host = uri.Host.ToLowerInvariant()
+                };
+                if (!string.IsNullOrEmpty(builder.Query))
+                {
+                    var parts = builder.Query.TrimStart('?')
+                        .Split('&', StringSplitOptions.RemoveEmptyEntries)
+                        .Where(p => !p.StartsWith("utm_", StringComparison.OrdinalIgnoreCase) &&
+                                    !p.StartsWith("fbclid=", StringComparison.OrdinalIgnoreCase) &&
+                                    !p.StartsWith("yclid=", StringComparison.OrdinalIgnoreCase))
+                        .ToArray();
+                    builder.Query = parts.Length > 0 ? string.Join("&", parts) : string.Empty;
+                }
+                var normalized = builder.Uri.ToString().TrimEnd('/');
+                if (normalized != e.TargetAppOrUrl)
+                {
+                    e.TargetAppOrUrl = normalized;
+                    updated++;
+                }
+            }
+        }
+
+        if (updated > 0)
+        {
+            await _vaultService.SaveVaultAsync();
+            RefreshFilteredList();
+            StatusMessage = $"Нормализовано и очищено от трекеров URL: {updated}";
+        }
+        else
+        {
+            StatusMessage = "Все URL-адреса уже приведены к единому стандарту ✓";
+        }
+    }
+
+    public async Task ExportHtmlReportAsync(string path)
+    {
+        if (_vaultService.CurrentContainer == null) return;
+        await _importExportService.ExportToPrintableHtmlAsync(_vaultService.CurrentContainer.Entries.Where(e => !e.IsDeleted), path);
+        StatusMessage = "Резервный HTML-паспорт сейфа сохранён.";
+    }
+
+    [RelayCommand]
     public void GeneratePinCode()
     {
         int pinLen = Math.Clamp(GenPasswordLength <= 12 ? GenPasswordLength : 6, 4, 12);
@@ -2428,6 +2570,9 @@ public partial class MainViewModel : ObservableObject
     public void CopySecret(KeyEntry? entry)
     {
         if (entry == null || string.IsNullOrEmpty(entry.SecretValue) || _dispatcherQueue == null) return;
+        entry.UsageCount++;
+        entry.LastUsedAt = DateTimeOffset.UtcNow;
+        _ = _vaultService.SaveVaultAsync();
         int timeout = _vaultService.Settings.ClearClipboardAfterSeconds ? _vaultService.Settings.ClipboardClearTimeout : 0;
         ClipboardHelper.CopyToClipboard(entry.SecretValue, _dispatcherQueue, timeout);
         StatusMessage = timeout > 0

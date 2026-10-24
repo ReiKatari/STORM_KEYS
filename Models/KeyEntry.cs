@@ -202,6 +202,22 @@ public partial class KeyEntry : ObservableObject
     // История предыдущих паролей
     public List<PasswordHistoryItem> PasswordHistory { get; set; } = new();
 
+    private int _usageCount;
+    public int UsageCount
+    {
+        get => _usageCount;
+        set
+        {
+            if (SetProperty(ref _usageCount, value))
+            {
+                OnPropertyChanged(nameof(UsageBadgeText));
+                OnPropertyChanged(nameof(UsageBadgeVisibility));
+            }
+        }
+    }
+
+    public DateTimeOffset? LastUsedAt { get; set; }
+
     // Настраиваемый макрос авто-ввода (по умолчанию: {USER}{TAB}{PASS}{ENTER})
     public string AutoTypeSequence { get; set; } = "{USER}{TAB}{PASS}{ENTER}";
     [JsonIgnore]
@@ -391,6 +407,49 @@ public partial class KeyEntry : ObservableObject
 
     [JsonIgnore]
     public Visibility TotpVisibility => HasTotp ? Visibility.Visible : Visibility.Collapsed;
+
+    [JsonIgnore]
+    public bool IsValidLuhnCardNumber => Category == KeyCategory.BankCard && Helpers.PasswordGenerator.ValidateLuhnChecksum(SecretValue);
+
+    [JsonIgnore]
+    public string CardBrandAndLuhnText
+    {
+        get
+        {
+            if (Category != KeyCategory.BankCard || string.IsNullOrWhiteSpace(SecretValue))
+                return string.Empty;
+            var brand = Helpers.PasswordGenerator.DetectCardBrand(SecretValue);
+            var valid = Helpers.PasswordGenerator.ValidateLuhnChecksum(SecretValue);
+            return valid ? $"💳 {brand} • Luhn OK" : $"💳 {brand} • Проверьте номер";
+        }
+    }
+
+    [JsonIgnore]
+    public Visibility CardBrandBadgeVisibility => (Category == KeyCategory.BankCard && !string.IsNullOrWhiteSpace(SecretValue))
+        ? Visibility.Visible
+        : Visibility.Collapsed;
+
+    [JsonIgnore]
+    public bool IsMissing2FaForCriticalService
+    {
+        get
+        {
+            if (HasTotp || Category is KeyCategory.BankCard or KeyCategory.License or KeyCategory.Wifi)
+                return false;
+            var hay = $"{Title} {TargetAppOrUrl}".ToLowerInvariant();
+            string[] critical = ["google", "gmail", "github", "gitlab", "steam", "microsoft", "outlook", "live.com", "apple", "icloud", "telegram", "discord", "binance", "bybit", "coinbase", "aws", "amazon", "cloudflare", "gosuslugi", "госуслуги", "яндекс", "yandex", "vk.com", "вконтакте", "sber", "сбер", "tbank", "тинькофф", "paypal", "openai", "anthropic"];
+            return critical.Any(c => hay.Contains(c));
+        }
+    }
+
+    [JsonIgnore]
+    public Visibility Missing2FaBadgeVisibility => IsMissing2FaForCriticalService ? Visibility.Visible : Visibility.Collapsed;
+
+    [JsonIgnore]
+    public string UsageBadgeText => UsageCount > 0 ? $"⚡ {UsageCount}" : string.Empty;
+
+    [JsonIgnore]
+    public Visibility UsageBadgeVisibility => UsageCount > 0 ? Visibility.Visible : Visibility.Collapsed;
 
     [ObservableProperty]
     [property: JsonIgnore]

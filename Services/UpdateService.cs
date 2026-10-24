@@ -29,7 +29,7 @@ public sealed class UpdateService : IUpdateService
     public static Version CurrentVersion => NormalizeVersion(
         typeof(UpdateService).Assembly.GetName().Version
         ?? Assembly.GetEntryAssembly()?.GetName().Version
-        ?? new Version(1, 0, 5));
+        ?? new Version(1, 0, 6));
 
     public static string CurrentVersionString => $"{CurrentVersion.Major}.{CurrentVersion.Minor}.{CurrentVersion.Build}";
 

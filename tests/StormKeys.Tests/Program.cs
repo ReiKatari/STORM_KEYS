@@ -51,6 +51,10 @@ public static class Program
         await RunTest("Модель 1.0.5: Корзина, Вложения, Резервные коды 2FA, Карты, Wi-Fi и Авто-матчер окна", Test_Entry_Trash_Attachments_RecoveryCodes_AutoType_105);
         await RunTest("Импорт/Экспорт 1.0.5: KeePass XML, Kaspersky TXT, .env и .stormbackup", Test_ImportExport_KeePassXml_DotEnv_EncryptedBackup_105);
         await RunTest("Вход 1.0.5: Тихая DPAPI-синхронизация Windows Hello и версия 1.0.5 без самообновления", Test_WindowsHello_SilentDpapi_And_NoSelfUpdate_105);
+        await RunTest("Генератор 1.0.6: Сид-фразы BIP-39 (12/24 слова) и анатомия пароля", Test_Bip39_SeedPhrase_And_Anatomy_106);
+        await RunTest("Финансы 1.0.6: Алгоритм Луна (Luhn Check) и автоопределение карт МИР/Visa/MasterCard", Test_Card_Luhn_And_Brand_Detection_106);
+        await RunTest("Крипто-обмен 1.0.6: Зашифрованные токены stormshare:// (AES-256-GCM) и HTML-паспорт", Test_SecureShareToken_And_PrintableHtml_106);
+        await RunTest("Аудит 1.0.6: Инспектор 2FA критических сервисов и защита от самообновления 1.0.6", Test_Critical2FaAdvisor_And_Version_106);
 
         Console.WriteLine("-------------------------------------------------");
         Console.WriteLine($"РЕЗУЛЬТАТ: Успешно: {_passed} | Ошибок: {_failed}");
@@ -851,6 +855,77 @@ public static class Program
         var v105_4 = new Version(1, 0, 5, 0);
         AssertTrue(!UpdateService.IsNewerVersion("1.0.5", v105_4), "Версия 1.0.5 НЕ должна предлагать обновление поверх 1.0.5.0");
         AssertTrue(UpdateService.IsNewerVersion("1.0.6", v105_4), "Версия 1.0.6 должна определяться как более новая");
+        return Task.CompletedTask;
+    }
+
+    private static Task Test_Bip39_SeedPhrase_And_Anatomy_106()
+    {
+        var seed12 = PasswordGenerator.GenerateSeedPhrase(12);
+        var seed24 = PasswordGenerator.GenerateSeedPhrase(24);
+        AssertEqual(12, seed12.Split(' ').Length, "Seed 12 должен содержать 12 слов");
+        AssertEqual(24, seed24.Split(' ').Length, "Seed 24 должен содержать 24 слова");
+
+        var anatomy = PasswordGenerator.AnalyzePasswordAnatomy("Storm#2026!Key");
+        AssertTrue(anatomy.Contains("Длина: 14") && anatomy.Contains("Без шаблонов"), "Анатомия пароля должна корректно считать классы символов");
+        return Task.CompletedTask;
+    }
+
+    private static Task Test_Card_Luhn_And_Brand_Detection_106()
+    {
+        AssertTrue(PasswordGenerator.ValidateLuhnChecksum("4532015112830366"), "Тестовый номер Visa должен проходить проверку Луна");
+        AssertTrue(!PasswordGenerator.ValidateLuhnChecksum("4532015112830367"), "Искажённый номер карты не должен проходить проверку Луна");
+        AssertEqual("МИР", PasswordGenerator.DetectCardBrand("2202 2001 1234 5678"), "Карта 2202 должна определяться как МИР");
+        AssertEqual("Visa", PasswordGenerator.DetectCardBrand("4532 0151 1283 0366"), "Карта 4532 должна определяться как Visa");
+        AssertEqual("MasterCard", PasswordGenerator.DetectCardBrand("5412 7500 1234 5678"), "Карта 5412 должна определяться как MasterCard");
+        return Task.CompletedTask;
+    }
+
+    private static async Task Test_SecureShareToken_And_PrintableHtml_106()
+    {
+        var service = new ImportExportService();
+        var sample = new KeyEntry
+        {
+            Title = "GitHub Enterprise",
+            UsernameOrEmail = "storm_admin",
+            SecretValue = "Sup3r$ecret#2026",
+            TargetAppOrUrl = "https://github.com"
+        };
+        string token = ImportExportService.CreateSecureShareToken(sample, "STORM");
+        AssertTrue(token.StartsWith("stormshare://"), "Токен обмена должен начинаться с stormshare://");
+
+        var clipRes = service.ImportFromClipboardText(token);
+        AssertEqual(1, clipRes.ImportedCount, "Токен stormshare:// должен импортироваться из буфера");
+        AssertEqual("GitHub Enterprise", clipRes.ImportedEntries[0].Title, "Название записи из токена должно совпадать");
+        AssertEqual("Sup3r$ecret#2026", clipRes.ImportedEntries[0].SecretValue, "Секрет из токена должен совпадать");
+
+        string tempHtml = Path.Combine(Path.GetTempPath(), $"storm_{Guid.NewGuid():N}.html");
+        try
+        {
+            await service.ExportToPrintableHtmlAsync(new[] { sample }, tempHtml);
+            string html = await File.ReadAllTextAsync(tempHtml);
+            AssertTrue(html.Contains("STORM KEYS") && html.Contains("GitHub Enterprise"), "HTML-паспорт должен содержать заголовок и записи");
+        }
+        finally
+        {
+            if (File.Exists(tempHtml)) File.Delete(tempHtml);
+        }
+    }
+
+    private static Task Test_Critical2FaAdvisor_And_Version_106()
+    {
+        var entry = new KeyEntry
+        {
+            Title = "GitHub Production",
+            TargetAppOrUrl = "https://github.com/login",
+            SecretValue = "Pass123!"
+        };
+        AssertTrue(entry.IsMissing2FaForCriticalService, "GitHub без TOTP должен помечаться инспектором 2FA");
+        entry.TotpSecret = "JBSWY3DPEHPK3PXP";
+        AssertTrue(!entry.IsMissing2FaForCriticalService, "GitHub с подключённым TOTP должен проходить проверку 2FA");
+
+        var v106 = new Version(1, 0, 6, 0);
+        AssertTrue(!UpdateService.IsNewerVersion("1.0.6", v106), "Версия 1.0.6 НЕ должна предлагать обновление поверх 1.0.6.0");
+        AssertTrue(UpdateService.IsNewerVersion("1.0.7", v106), "Версия 1.0.7 должна определяться как более новая");
         return Task.CompletedTask;
     }
 
